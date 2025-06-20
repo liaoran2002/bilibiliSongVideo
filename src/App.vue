@@ -2,26 +2,27 @@
 	<div id="app">
 		<video id="biliVideo" :src="videoUrl" ref="video" @canplay="videoCanPlay" @timeupdate="videoUpDate"
 			@ended="videoEnded" autoplay></video>
-		<biliVideoControls
-		:videoName="videoName"
-		:currentTime="currentTime"
-		:duration="duration"
-		@videoControl="videoControl"
-		@changeTime="changeTime"
-		></biliVideoControls>
+		<showList :listType="listType" :title="listType=='list'?listName:songName"
+			:list="listType=='list'?songs:videoList" @showList="showList" @changeSong="changeSong"
+			@changeVideo="changeVideo"></showList>
+		<biliVideoControls :videoName="videoName" :currentMode="currentMode" :currentVolume="currentVolume"
+			:isMuted="isMuted" :currentTime="currentTime" :duration="duration" :paused="paused" :listType="listType"
+			@videoControl="videoControl" @changeTime="changeTime" @changeVolume="changeVolume"></biliVideoControls>
 	</div>
 </template>
 
 <script>
 	import biliVideoControls from "./components/biliVideoControls.vue"
+	import showList from "./components/showList.vue"
 	export default {
 		name: 'App',
 		data() {
 			return {
 				songListUrl: "",
+				listName: "",
 				songs: [],
 				videoList: [],
-				videoUrl: "./如果可以 - 韦礼安.mp4",
+				videoUrl: "",
 				randomList: [],
 				currentIndex: 0,
 				MODE: {
@@ -32,49 +33,48 @@
 				currentMode: 0,
 				videoName: "",
 				songName: "",
-				mutedVolume: 0,
 				currentVolume: 70,
 				currentTime: 0,
 				duration: 0,
-				isMuted: false
+				isMuted: false,
+				paused: false,
+				listType: "none"
 			}
 		},
 		components: {
-			biliVideoControls
+			biliVideoControls,
+			showList
 		},
 		methods: {
 			init() {
-				this.getSongs();
-				this.resetRandomList();
-				this.$refs.video.volume=this.currentVolume/100;
+				if (this.songListUrl == '') {
+					this.songListUrl = prompt('请输入歌单链接地址', 'https://y.qq.com/n/ryqq/playlist/8153225605');
+				}
+				if (this.songListUrl !== '') {
+					this.getSongs();	
+				}
 			},
 			getSongs() {
 				this.$http({
 					method: "POST",
 					url: "/sss/songlist?detailed=false&format=song-singer",
-					data: 'url=https://y.qq.com/n/ryqq/playlist/8153225605'
+					data: `url=${this.songListUrl}`
 				}).then((res) => {
-					console.log(res);
+					this.listName = res["name"];
+					this.songs = res["songs"];
+					this.changeSong(this.currentIndex);
+					this.resetRandomList();
+					this.$refs.video.volume = this.currentVolume / 100;
 				}).catch((err) => {
 					console.log(err);
-				})
-			},
-			devInit() {
-				this.$http({
-					method: "GET",
-					url: "./666.json"
-				}).then((res) => {
-					this.songs = res["songs"];
-				}).catch((err) => {
-					console.log("error", err);
 				})
 			},
 			videoCanPlay() {
 				this.video = this.$refs.video;
 			},
 			videoUpDate() {
-				this.currentTime=this.$refs.video.currentTime;
-				this.duration=this.$refs.video.duration;
+				this.currentTime = this.$refs.video.currentTime;
+				this.duration = this.$refs.video.duration;
 			},
 			videoEnded() {
 				if (this.currentMode == this.MODE.SINGLE) {
@@ -103,12 +103,35 @@
 						break;
 				}
 			},
-			changeTime(time){
-				this.$refs.video.currentTime=time;
+			showList(event) {
+				this.listType = (this.listType == event) ? "none" : event;
+			},
+			playConctrol() {
+				if (this.paused)
+					this.$refs.video.play();
+				else
+					this.$refs.video.pause();
+				this.paused = !this.paused;
+			},
+			changeTime(time) {
+				if (this.paused) {
+					this.$refs.video.play();
+					this.paused = !this.paused;
+				}
+				this.$refs.video.currentTime = time;
+			},
+			changeVolume(volume) {
+				if (volume == 0) {
+					this.isMuted = true;
+				} else {
+					this.isMuted = false;
+				}
+				console.log(volume)
+				this.$refs.video.volume = volume / 100;
+				this.currentVolume = volume;
 			},
 			changeSong(index) {
 				this.currentIndex = index;
-				console.log(this.songs, this.currentIndex)
 				this.songName = this.getCurrentSong()
 				this.$http({
 					method: "POST",
@@ -163,13 +186,13 @@
 				}
 				switch (this.currentMode) {
 					case this.MODE.SINGLE:
-						return this.songs[this.currentIndex];
+						return this.currentIndex;
 					case this.MODE.RANDOM:
 						return this.getRandomPrev();
 					case this.MODE.LOOP:
 					default:
 						this.currentIndex = (this.currentIndex - 1 + this.songs.length) % this.songs.length;
-						return this.songs[this.currentIndex];
+						return this.currentIndex;
 				}
 			},
 			setCurrentIndex(index) {
@@ -246,8 +269,8 @@
 			}
 		},
 		mounted() {
-			// this.init();
-			this.devInit()
+			this.init();
+			// this.devInit()
 		}
 	}
 </script>

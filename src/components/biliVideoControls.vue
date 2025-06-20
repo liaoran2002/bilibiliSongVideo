@@ -1,29 +1,33 @@
 <template>
 	<div id="biliVideoControls">
 		<div class="videoName-container">
-			<div id="videoName">{{ videoName }}</div>
+			<div id="videoName" v-html="videoName"></div>
 		</div>
 		<div id="controls">
-			<i class="iconfont icon-yinleliebiao" @click="executeMethod('videoControl','list')" id="list"></i>
-			<i class="iconfont icon-bofangliebiao" @click="executeMethod('videoControl','vList')" id="vList"></i>
+			<i :class="['iconfont',listType=='list'?'icon-cuowu':'icon-yinleliebiao']" @click="executeMethod('videoControl','list')" id="list"></i>
+			<i :class="['iconfont',listType=='vList'?'icon-cuowu':'icon-bofangliebiao']" @click="executeMethod('videoControl','vList')" id="vList"></i>
 			<i class="iconfont icon-play-previous" @click="executeMethod('videoControl','before')" id="before"></i>
-			<i class="iconfont icon-pause" @click="executeMethod('videoControl','playControl')" id="playControls"></i>
+			<i :class="['iconfont',paused?'icon-play':'icon-pause']" @click="executeMethod('videoControl','playControls')" id="playControls"></i>
 			<i class="iconfont icon-play-next" @click="executeMethod('videoControl','next')" id="next"></i>
-			<div class="audio-control" @click="toggleMute(event)">
-				<i class="iconfont icon-sound-on" @click="executeMethod('videoControl','sound')" id="sound"></i>
+			<div class="audio-control">
+				<i :class="['iconfont',isMuted?'icon-sound-off':'icon-sound-on']" @click="toggleMute" id="sound"></i>
 				<div class="volume-slider" id="volume-slider">
-					<div class="volume-track">
-						<div class="volume-progress" id="volumeProgress"></div>
-						<div class="volume-thumb" id="volumeThumb"></div>
+					<div :class="['volume-track',isSoundDragging?'show':'']" id="volume-track" @mousedown="openDragging" @mousemove="startDragging"
+						@click="changeVolume">
+						<div class="volume-progress" id="volumeProgress"
+							:style="{height:(isSoundDragging?draggingVolume:currentVolume)+'%'}"></div>
+						<div class="volume-thumb" id="volumeThumb"
+							:style="{bottom:(isSoundDragging?draggingVolume:currentVolume)+'%'}"></div>
 					</div>
-					<div class="volume-number" id="volume-number">0</div>
+					<div class="volume-number" id="volume-number">{{ isSoundDragging?draggingVolume:currentVolume }}
+					</div>
 				</div>
 			</div>
-			<i class="iconfont icon-shunxubofang" @click="executeMethod('videoControl','playMode')" id="playMode"></i>
+			<i :class="['iconfont',currentMode?currentMode==1?'icon-danquxunhuan':'icon-ziyuanldpi':'icon-shunxubofang']" @click="executeMethod('videoControl','playMode')" id="playMode"></i>
 		</div>
 		<!-- 进度条 -->
 		<div class="progressContainer">
-			<div class="time" id="currentTime">{{ formatTime(currentTime) }}</div>
+			<div class="time" id="currentTime">{{ formatTime(isVideoDragging?draggingTime:currentTime) }}</div>
 			<div class="progressWrapper" id="progressContainer" @mousedown="openDragging" @mousemove="startDragging"
 				@click="changeTime">
 				<div class="progressBar" :style="{width:(progress)*100+'%'}" id="progressBar">
@@ -52,11 +56,21 @@
 				default: "",
 				required: true
 			},
+			currentMode:{
+				type: Number,
+				default: 0,
+				required: true
+			},
 			currentVolume: {
 				type: Number,
 				default: 0,
 				required: true
-			}
+			},
+			isMuted: {
+				type: Boolean,
+				default: false,
+				required: true
+			},
 			currentTime: {
 				type: Number,
 				default: 0,
@@ -65,6 +79,16 @@
 			duration: {
 				type: Number,
 				default: 0,
+				required: true
+			},
+			paused: {
+				type: Boolean,
+				default: false,
+				required: true
+			},
+			listType:{
+				type: String,
+				default: "",
 				required: true
 			}
 		},
@@ -82,6 +106,23 @@
 					`${pad(hours)}:${pad(minutes)}:${pad(seconds)}` :
 					`${pad(minutes)}:${pad(seconds)}`;
 			},
+			toggleMute() {
+				if (this.isMuted)
+					this.executeMethod("changeVolume", this.draggingVolume);
+				else {
+					this.draggingVolume = this.currentVolume;
+					this.executeMethod("changeVolume", 0);
+				}
+			},
+			changeVolume(event) {
+				if (this.isSoundDragging) return; // 拖动时不处理点击
+				const rect = event.currentTarget.getBoundingClientRect();
+				const y = rect.bottom - event.clientY; // 鼠标距离底部的距离
+				let percentage = y / rect.height;
+				percentage = Math.min(Math.max(0, percentage), 1); // 限制在0-1之间
+				this.draggingVolume = Math.round(percentage * 100); // 转换为0-100的整数
+				this.executeMethod("changeVolume", this.draggingVolume);
+			},
 			changeTime(event) {
 				if (this.isVideoDragging) return; // 拖动时不处理点击
 				const rect = event.currentTarget.getBoundingClientRect();
@@ -92,8 +133,10 @@
 			openDragging(event) {
 				if (event.currentTarget.id == "progressContainer")
 					this.isVideoDragging = true;
-
-
+				else if (event.currentTarget.id == "volume-track")
+					this.isSoundDragging = true;
+				else
+					return;
 			},
 			startDragging(event) {
 				if (this.isVideoDragging) {
@@ -102,7 +145,12 @@
 					this.draggingTime = pos * this.duration;
 					this.executeMethod("changeTime", this.draggingTime);
 				} else if (this.isSoundDragging) {
-					// handleVolumeChange(e);
+					const rect = event.currentTarget.getBoundingClientRect();
+					const y = rect.bottom - event.clientY; // 鼠标距离底部的距离
+					let percentage = y / rect.height;
+					percentage = Math.min(Math.max(0, percentage), 1); // 限制在0-1之间
+					this.draggingVolume = Math.round(percentage * 100); // 转换为0-100的整数
+					this.executeMethod("changeVolume", this.draggingVolume);
 				} else {
 					return;
 				}
@@ -247,7 +295,12 @@
 	}
 
 	/* 显示音量控制条 */
-	.audio-control:hover .volume-slider {
+	.audio-control:hover .volume-slider{
+		opacity: 1;
+		visibility: visible;
+	}
+	
+	.show{
 		opacity: 1;
 		visibility: visible;
 	}

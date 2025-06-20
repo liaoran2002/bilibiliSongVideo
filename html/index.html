@@ -353,7 +353,7 @@
 				<i class="iconfont icon-play-previous" onclick="videoControl(this)" id="before"></i>
 				<i class="iconfont icon-pause" onclick="videoControl(this)" id="playControls"></i>
 				<i class="iconfont icon-play-next" onclick="videoControl(this)" id="next"></i>
-				<div class="audio-control" onclick="toggleMute(event)">
+				<div class="audio-control">
 					<i class="iconfont icon-sound-on" onclick="videoControl(this)" id="sound"></i>
 					<div class="volume-slider" id="volume-slider">
 						<div class="volume-track">
@@ -501,6 +501,9 @@
 					case "playMode":
 						playMode();
 						break;
+					case "sound":
+						toggleMute();
+						break;
 				}
 			}
 
@@ -591,7 +594,7 @@
 
 			function playConctrol() {
 				let playControlsElement = document.getElementById("playControls")
-				if (videoElement.paused === true) {
+				if (videoElement.paused) {
 					videoElement.play();
 					playControlsElement.classList.remove("icon-play");
 					playControlsElement.classList.add("icon-pause");
@@ -695,23 +698,20 @@
 			}
 
 			// 切换静音状态
-			function toggleMute(event) {
-				// 检查是否点击了图标，而不是音量控制条
-				if (event.target.classList.contains('iconfont')) {
-					if (isMuted) {
-						// 取消静音，恢复之前的音量
-						isMuted = false;
-						currentVolume = mutedVolume;
-					} else {
-						// 静音，记录当前音量
-						isMuted = true;
-						mutedVolume = currentVolume;
-						currentVolume = 0;
-					}
-					videoElement.muted = isMuted;
-					videoElement.volume = currentVolume / 100;
-					updateVolumeDisplay();
+			function toggleMute() {
+				if (isMuted) {
+					// 取消静音，恢复之前的音量
+					isMuted = false;
+					currentVolume = mutedVolume;
+				} else {
+					// 静音，记录当前音量
+					isMuted = true;
+					mutedVolume = currentVolume;
+					currentVolume = 0;
 				}
+				videoElement.muted = isMuted;
+				videoElement.volume = currentVolume / 100;
+				updateVolumeDisplay();
 			}
 
 			// 事件监听
