@@ -6,29 +6,49 @@ import faker
 from selenium import webdriver
 from flask import Flask, jsonify, request
 from flask_cors import CORS  # 导入CORS模块
+from selenium.common import WebDriverException
+from requests.exceptions import JSONDecodeError
 
 SONG_DIR = "song"
 cookie = ""
 os.makedirs(SONG_DIR, exist_ok=True)
 
+def get_any_driver(headless=True):
+    browsers = [
+        (webdriver.Chrome, webdriver.ChromeOptions),
+        (webdriver.Edge, webdriver.EdgeOptions),
+        (webdriver.Firefox, webdriver.FirefoxOptions),
+    ]
+    for driver_class, options_class in browsers:
+        try:
+            options = options_class()
+            if headless:
+                # 自动区分新旧无头！！！
+                if driver_class == webdriver.Firefox:
+                    options.add_argument("--headless")
+                else:
+                    options.add_argument("--headless=new")  # Chrome/Edge用新版
+            driver = driver_class(options=options)
+            print(f"✅ 启动：{driver_class.__name__}")
+            return driver
+        except WebDriverException:
+            continue
+    raise RuntimeError("无可用浏览器")
 
 def get_bili_cookie():
-    options = webdriver.ChromeOptions()
-    options.add_argument("headless")  # 无头模式
-    service = webdriver.ChromeService(executable_path="C:/Program Files/Google/Chrome/Application/chromedriver.exe")
-    driver = webdriver.Chrome(options=options, service=service)
+    driver = get_any_driver(headless=True)
     url = 'https://www.bilibili.com'
-    driver.get(url)
-    time.sleep(5)
-    cookies = driver.get_cookies()
-    cookie_str = ""
-    n = 1
-    for i in cookies:
-        cookie_str += i["name"] + "=" + i["value"] + ("" if (n == len(cookies)) else ";")
-        n += 1
-    print(cookie_str)
-    driver.quit()
-    return cookie_str
+    try:
+        driver.get(url)
+        time.sleep(3)  # 等待页面加载完成
+        # ✅ 最佳拼接方式（一行搞定）
+        cookies = driver.get_cookies()
+        cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        print("✅ 获取Cookie成功：")
+        print(cookie_str)
+        return cookie_str
+    finally:
+        driver.quit()  # 确保一定会关闭浏览器
 
 
 def get_songs_data(keyword):
@@ -71,9 +91,15 @@ def get_bili_search(song_name):
     }
     url = "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword={}".format(
         song_name)
-    print(url)
-    result = requests.get(url=url, headers=headers).json()
-    return result
+    try:
+        print(url)
+        result = requests.get(url=url, headers=headers).json()
+        return result
+    except JSONDecodeError as e:
+        print(e)
+        return None
+
+    
 
     # 获取歌曲数据，如果文件不存在则爬取
 
@@ -113,6 +139,8 @@ def get_data():
         return jsonify({"error": "关键词不能为空"}), 400
     # 获取歌曲数据
     song_data = get_songs_data(keyword)
+    if not song_data :
+        return jsonify({"error": "关键词搜索出错，请重试"}), 400
     return song_data
 
 
