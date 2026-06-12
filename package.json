@@ -1,0 +1,43 @@
+{
+  "name": "bilibiliSongVideo-desktop",
+  "version": "1.0.0",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"vite\" \"electron .\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "pack": "vite build && electron-builder --dir",
+    "dist": "vite build && electron-builder"
+  },
+  "dependencies": {
+    "vue": "^3.4.21",
+    "element-plus": "^2.7.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.8",
+    "electron": "^31.0.0",
+    "electron-builder": "^25.0.0",
+    "concurrently": "^8.2.2"
+  },
+  "build": {
+    "appId": "com.bilibili.songvideo",
+    "productName": "B站音乐视频",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
