@@ -1,7 +1,10 @@
 .DS_Store
+# 匹配所有层级下的对应文件夹
 node_modules
-/dist
-
+dist
+__pycache__
+song
+html
 
 # local env files
 .env.local

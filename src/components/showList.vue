@@ -6,9 +6,10 @@
 			<div class="listBody">
 				<ul class="lists">
 					<li :key="index" v-for="(item,index) in list"
-						@click="listType=='list'?executeMethod('changeSong',index):executeMethod('changeVideo',item['bvid'])"
-						v-html="listType=='list'?item:item['title']"
-						></li>
+						@click="listType=='list'?executeMethod('changeSong',index):executeMethod('changeVideo',item['bvid'])">
+						<div class="index">{{ index + 1 }}</div>
+						<div class="title" v-html="listType=='list'?item:item['title']"></div>
+					</li>
 				</ul>
 			</div>
 		</div>
@@ -122,20 +123,52 @@
 	}
 
 	.lists li {
+		display: flex;
+		text-align: center;
 		backdrop-filter: blur(10px);
 		/* 磨砂玻璃核心属性 */
 		-webkit-backdrop-filter: blur(10px);
 		/* 兼容webkit内核 */
+		/* background: rgba(255, 255, 255, 0.3); */
+		/* 半透明背景 */
+		/* border: 1px solid rgba(255, 255, 255, 0.5); */
+		/* 边框增强立体感 */
+		color: black;
+		/* padding: 5px; */
+		margin: 1%;
+	}
+
+	.lists .index {
+		background: rgba(0, 0, 0, 0.3);
+		/* 半透明背景 */
+		border: 1px solid rgba(0, 0, 0, 0.5);
+		width: 5%;
+		padding: 1%;
+		margin: 0 auto;
+		color: white;
+	}
+
+	.lists li:nth-child(2n) .index {
 		background: rgba(255, 255, 255, 0.3);
 		/* 半透明背景 */
 		border: 1px solid rgba(255, 255, 255, 0.5);
 		/* 边框增强立体感 */
 		color: black;
-		padding: 5px;
-		margin: 5px;
 	}
 
-	.lists li:nth-child(2n) {
+	.lists .title {
+		background: rgba(255, 255, 255, 0.3);
+		/* 半透明背景 */
+		border: 1px solid rgba(255, 255, 255, 0.5);
+		/* 边框增强立体感 */
+		color: black;
+		border: 1px solid rgba(0, 0, 0, 0.5);
+		width: 95%;
+		margin: 0 auto;
+		padding: 1%;
+	}
+
+	.lists li:nth-child(2n) .title {
 		background: rgba(0, 0, 0, 0.3);
 		/* 半透明背景 */
 		border: 1px solid rgba(0, 0, 0, 0.5);

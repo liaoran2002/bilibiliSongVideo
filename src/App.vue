@@ -38,7 +38,8 @@
 				duration: 0,
 				isMuted: false,
 				paused: false,
-				listType: "none"
+				listType: "none",
+				message: ""
 			}
 		},
 		components: {
@@ -51,8 +52,23 @@
 					this.songListUrl = prompt('请输入歌单链接地址', 'https://y.qq.com/n/ryqq/playlist/8153225605');
 				}
 				if (this.songListUrl !== '') {
-					this.getSongs();	
+					this.getDevSongs();	
 				}
+			},
+			getDevSongs(){
+				this.$http({
+					method: "GET",
+					url: "./666.json",
+				}).then((res) => {
+					this.listName = res["name"];
+					this.songs = res["songs"];
+					this.changeSong(this.currentIndex);
+					this.resetRandomList();
+					this.$refs.video.volume = this.currentVolume / 100;
+				}).catch((err) => {
+					this.$message.error(err);
+					console.log(err);
+				})
 			},
 			getSongs() {
 				this.$http({
@@ -66,6 +82,7 @@
 					this.resetRandomList();
 					this.$refs.video.volume = this.currentVolume / 100;
 				}).catch((err) => {
+					this.$message.error(err);
 					console.log(err);
 				})
 			},
@@ -80,7 +97,7 @@
 				if (this.currentMode == this.MODE.SINGLE) {
 					this.currentTime = 0;
 				} else {
-					this.changeSong(this.next());
+					this.next();
 				}
 			},
 			videoControl(event) {
@@ -90,10 +107,10 @@
 						this.showList(event);
 						break;
 					case "before":
-						this.changeSong(this.prev())
+						this.prev();
 						break;
 					case "next":
-						this.changeSong(this.next())
+						this.next();
 						break;
 					case "playControls":
 						this.playConctrol();
@@ -131,18 +148,20 @@
 				this.currentVolume = volume;
 			},
 			changeSong(index) {
-				this.currentIndex = index;
-				this.songName = this.getCurrentSong()
+				let songName = this.getSongName(index);
 				this.$http({
 					method: "POST",
-					url: "/biliapi/search",
-					data: `keyword=${this.songName}`
+					url: "/biliapi/search_song",
+					data: {"keyword": songName},
+					needRetry: true
 				}).then((res) => {
+					this.currentIndex = index;
+					this.songName = songName;
 					this.videoList = res["result"];
-					this.videoName = this.videoList[0]["title"];
 					this.changeVideo(this.videoList[0]["bvid"]);
 				}).catch((err) => {
-					console.log(err);
+					console.log(`《${songName}》${err['response']['data']['message']}(${err.config.__retryCount}/3})`);
+					this.$message.error(`《${songName}》${err['response']['data']['message']}(${err.config.__retryCount}/3})`);
 				})
 			},
 			changeVideo(bvid) {
@@ -155,53 +174,45 @@
 					}
 				}).then((res) => {
 					this.videoUrl = res[0]["video_url"];
+					this.videoName = this.videoList.find(item => item["bvid"] === bvid)["title"];
 				}).catch((err) => {
+					this.$message.error(err);
 					console.log(err);
 				})
 			},
-			getCurrentSong() {
+			getSongName(index) {
 				if (!this.songs || this.songs.length === 0) {
 					return null;
 				}
-				return this.songs[this.currentIndex];
+				return this.songs[index];
 			},
 			next() {
 				if (!this.songs || this.songs.length === 0) {
+					this.$message.error("歌单有误,请先添加歌单");
+					this.init();
 					return null;
 				}
-				switch (this.currentMode) {
-					case this.MODE.SINGLE:
-						return this.currentIndex;
-					case this.MODE.RANDOM:
-						return this.getRandomNext();
-					case this.MODE.LOOP:
-					default:
-						this.currentIndex = (this.currentIndex + 1) % this.songs.length;
-						return this.currentIndex;
+				let index = null;
+				if (this.currentMode === this.MODE.RANDOM) {
+					index=this.getRandomNext();
+				} else {
+					index = (this.currentIndex + 1) % this.songs.length;
 				}
+				this.changeSong(index);
 			},
 			prev() {
 				if (!this.songs || this.songs.length === 0) {
+					this.$message.error("歌单有误,请先添加歌单");
+					this.init();
 					return null;
 				}
-				switch (this.currentMode) {
-					case this.MODE.SINGLE:
-						return this.currentIndex;
-					case this.MODE.RANDOM:
-						return this.getRandomPrev();
-					case this.MODE.LOOP:
-					default:
-						this.currentIndex = (this.currentIndex - 1 + this.songs.length) % this.songs.length;
-						return this.currentIndex;
+				let index = null;
+				if (this.currentMode === this.MODE.RANDOM) {
+					index=this.getRandomPrev();
+				} else{
+					index = (this.currentIndex - 1 + this.songs.length) % this.songs.length;
 				}
-			},
-			setCurrentIndex(index) {
-				if (this.songs && index >= 0 && index < this.songs.length) {
-					this.currentIndex = index;
-					if (this.currentMode === this.MODE.RANDOM) {
-						this.updateRandomList();
-					}
-				}
+				this.changeSong(index);
 			},
 			toggleMode() {
 				this.currentMode = (this.currentMode + 1) % 3;
@@ -211,31 +222,24 @@
 				return this.currentMode;
 			},
 			getRandomNext() {
-				if (this.randomList.length === 0) {
-					this.resetRandomList();
-				}
+				if (this.randomList.length === 0) this.resetRandomList();
 				let currentPos = this.randomList.indexOf(this.currentIndex);
 				if (currentPos === -1) {
 					this.randomList.push(this.currentIndex);
 					currentPos = this.randomList.length - 1;
 				}
 				let nextPos = (currentPos + 1) % this.randomList.length;
-				this.currentIndex = this.randomList[nextPos];
-
-				return this.songs[this.currentIndex];
+				return this.randomList[nextPos];
 			},
 			getRandomPrev() {
-				if (this.randomList.length === 0) {
-					this.resetRandomList();
-				}
+				if (this.randomList.length === 0) this.resetRandomList();
 				let currentPos = this.randomList.indexOf(this.currentIndex);
 				if (currentPos === -1) {
 					this.randomList.push(this.currentIndex);
 					currentPos = this.randomList.length - 1;
 				}
 				let prevPos = (currentPos - 1 + this.randomList.length) % this.randomList.length;
-				this.currentIndex = this.randomList[prevPos];
-				return this.songs[this.currentIndex];
+				return this.randomList[prevPos];
 			},
 			resetRandomList() {
 				const indices = Array.from({
