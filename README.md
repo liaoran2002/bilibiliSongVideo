@@ -1,27 +1,30 @@
 # bilibiliSongVideo
-这是一个从B站(https://www.bilibili.com/)获取歌单里音乐的视频自动播放的网页，有HTML和VUE两个版本。
+这是一个从B站获取歌单里音乐的视频自动播放的electron+vue写的桌面端
 
 ## 项目安装
 ```
 npm install
-pip install -r backend/requirements.txt
 ```
 
 ### 开发环境编译及热重载
 
 ```
-npm run serve
-python backend/main.py
+npm run dev
 ```
 
-### 生产环境编译及打包
+### 打包Vue前端代码
 ```
 npm run build
 ```
 
-### 检查及修复文件
+### 打包免安装绿色版Electron 程序
 ```
-npm run lint
+npm run pack
 ```
+### 正式打包并生成安装包
+```
+npm run dist
+```
+
 
 有更好的建议欢迎提issue，有更好的代码欢迎提交PR
