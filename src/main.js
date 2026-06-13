@@ -1,14 +1,9 @@
-import Vue from 'vue'
+import { createApp } from 'vue'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
 import App from './App.vue'
-import ElementUI from 'element-ui'
-import 'element-ui/lib/theme-chalk/index.css'
-import './assets/iconfont/iconfont.css';
-import httpRequest from './api/httpRequest';
-Vue.prototype.$http = httpRequest // http请求方法
-Vue.config.productionTip = false
-Vue.config.devtools = true
-Vue.use(ElementUI)
-new Vue({
-  el: '#app',
-  render: h => h(App),
-}).$mount('#app')
+import './assets/iconfont/iconfont.css'
+
+const app = createApp(App)
+app.use(ElementPlus)
+app.mount('#app')

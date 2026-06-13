@@ -2,13 +2,12 @@ import json
 import os
 
 import uvicorn
-from bili_apis import BiliApis
+from bili_apis import search_song, search_some, resolve_video_url, fetch_song_list
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 SONG_DIR = "song"
 os.makedirs(SONG_DIR, exist_ok=True)
-apis = BiliApis()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +39,7 @@ def search(data: dict):
                     return json.load(f)
             except Exception as e:
                 print(f"读取文件错误: {e}")
-        res_json = apis.search_song(keyword)
+        res_json = search_song(keyword)
         if res_json["code"] != 0:
             print(f"获取数据失败: {keyword}")
             return res_json
@@ -48,7 +47,8 @@ def search(data: dict):
             fd.write(json.dumps(res_json, indent=4, ensure_ascii=False))
         print(f"数据已保存到 {file_path}")
         return res_json
-    except Exception:
+    except Exception as e:
+        print(str(e))
         return {"code": 400, "message": "关键词搜索出错，请重试"}
 
 """
@@ -61,9 +61,42 @@ def search_some(data: dict):
     try:
         keyword = data["keyword"]
         order = data["order"]
-        return apis.search_some(keyword, order)
+        return search_some(keyword, order)
     except Exception:
         return {"code": 400, "message": "关键词搜索出错，请重试"}
+
+
+"""
+    解析视频地址
+    :json bvid: 视频BV号
+    :json cookie: 用户cookie（可选）
+"""
+@app.post("/resolve_video")
+def resolve_video(data: dict):
+    try:
+        bvid = data.get("bvid", "")
+        if not bvid:
+            return {"code": 400, "message": "bvid不能为空"}
+        video_url = resolve_video_url(bvid)
+        return {"code": 0, "videoUrl": video_url}
+    except Exception as e:
+        return {"code": 400, "message": str(e)}
+
+
+"""
+    获取歌单
+    :json url: 歌单链接
+"""
+@app.post("/fetch_song_list")
+def song_list(data: dict):
+    try:
+        song_list_url = data.get("url", "")
+        if not song_list_url:
+            return {"code": 400, "message": "url不能为空"}
+        result = fetch_song_list(song_list_url)
+        return {"code": 0, "data": result}
+    except Exception as e:
+        return {"code": 400, "message": str(e)}
 
 
 if __name__ == "__main__":

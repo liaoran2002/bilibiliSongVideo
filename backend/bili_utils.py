@@ -1,10 +1,28 @@
 import hashlib
 import time
+import re
 import faker
+import requests
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.support import expected_conditions as EC
+
 
 import execjs
+
+NAV_API = 'https://api.bilibili.com/x/web-interface/nav'
+
+MIXIN_KEY_ENC_TAB = [
+    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
+    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
+    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
+    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+]
+
+cached_mixin_key = None
+mixin_key_expire_at = 0
 
 def get_any_driver(headless=True):
     browsers = [
@@ -16,11 +34,10 @@ def get_any_driver(headless=True):
         try:
             options = options_class()
             if headless:
-                # 自动区分新旧无头！！！
                 if driver_class == webdriver.Firefox:
                     options.add_argument("--headless")
                 else:
-                    options.add_argument("--headless=new")  # Chrome/Edge用新版
+                    options.add_argument("--headless=new")
             driver = driver_class(options=options)
             print(f"✅ 启动：{driver_class.__name__}")
             return driver
@@ -33,15 +50,13 @@ def get_bili_cookie():
     url = 'https://www.bilibili.com'
     try:
         driver.get(url)
-        time.sleep(3)  # 等待页面加载完成
-        # ✅ 最佳拼接方式（一行搞定）
+        time.sleep(3)
         cookies = driver.get_cookies()
         cookie_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
-        print("✅ 获取Cookie成功：")
-        print(cookie_str)
+        print("✅ 获取Cookie成功")
         return cookie_str
     finally:
-        driver.quit()  # 确保一定会关闭浏览器
+        driver.quit()
 
 try:
     user_agent = faker.Faker().user_agent()
@@ -84,6 +99,49 @@ def md5(string):
     m = hashlib.md5()
     m.update(string.encode())
     return m.hexdigest()
+
+def get_mixin_key(img_key, sub_key):
+    raw = img_key + sub_key
+    result = ''
+    for i in range(32):
+        result += raw[MIXIN_KEY_ENC_TAB[i]]
+    return result
+
+def refresh_mixin_key():
+    global cached_mixin_key, mixin_key_expire_at
+    try:
+        headers = get_common_headers()
+        response = requests.get(NAV_API, headers=headers)
+        data = response.json()
+        img_url = data.get('data', {}).get('wbi_img', {}).get('img_url', '')
+        sub_url = data.get('data', {}).get('wbi_img', {}).get('sub_url', '')
+        if not img_url or not sub_url:
+            return None
+        img_key = img_url.split('/')[-1].split('.')[0]
+        sub_key = sub_url.split('/')[-1].split('.')[0]
+        cached_mixin_key = get_mixin_key(img_key, sub_key)
+        mixin_key_expire_at = time.time() + 3600
+        return cached_mixin_key
+    except Exception:
+        return None
+
+def get_mixin_key_cached():
+    global cached_mixin_key, mixin_key_expire_at
+    if cached_mixin_key and time.time() < mixin_key_expire_at:
+        return cached_mixin_key
+    return refresh_mixin_key()
+
+def enc_wbi(params, mixin_key):
+    params['wts'] = int(time.time())
+    sorted_keys = sorted(params.keys())
+    query_parts = []
+    for k in sorted_keys:
+        v = str(params[k])
+        v = re.sub(r"[!'()*]", '', v)
+        query_parts.append(f"{k}={v}")
+    query = '&'.join(query_parts)
+    w_rid = md5(query + mixin_key)
+    return query + f'&w_rid={w_rid}'
 
 def get_search_params(keyword, order=""):
     return {
