@@ -3,7 +3,15 @@
     <div class="titlebar">
       <div class="titlebar-drag"></div>
       <div class="titlebar-right">
-        <div class="user-info" @click="showUserMenu = !showUserMenu">
+        <div class="titlebar-btn" @click="showUrlDialog = true">设置歌单</div>
+        <div
+          class="titlebar-btn"
+          @click="toggleWallpaper"
+          v-if="!externalWallpaper"
+        >
+          {{ wallpaperEnabled ? '应用程序' : '桌面壁纸' }}
+        </div>
+        <div class="user-info" @click="handleLogoutConfirm">
           <img
             v-if="userFace"
             :src="userFace"
@@ -12,23 +20,12 @@
           />
           <span class="user-name">{{ userName || '未登录' }}</span>
         </div>
-        <transition name="fade">
-          <div v-if="showUserMenu" class="user-menu">
-            <div
-              class="menu-item"
-              @click="
-                showUrlDialog = true;
-                showUserMenu = false;
-              "
-            >
-              设置歌单
-            </div>
-            <div class="menu-item" @click="handleLoginAction">
-              {{ isLoggedIn ? '退出登录' : '登录' }}
-            </div>
-          </div>
-        </transition>
-        <div class="win-btn" @click="winMinimize" title="最小化">
+        <div
+          class="win-btn"
+          @click="winMinimize"
+          title="最小化"
+          v-if="!wallpaperEnabled"
+        >
           <svg width="12" height="12" viewBox="0 0 12 12">
             <rect y="5" width="12" height="1" fill="currentColor" />
           </svg>
@@ -37,6 +34,7 @@
           class="win-btn"
           @click="winMaximize"
           :title="isMaximized ? '向下还原' : '最大化'"
+          v-if="!wallpaperEnabled"
         >
           <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12">
             <rect
@@ -69,7 +67,12 @@
             />
           </svg>
         </div>
-        <div class="win-btn win-close" @click="winClose" title="关闭">
+        <div
+          class="win-btn win-close"
+          @click="winClose"
+          title="关闭"
+          v-if="!wallpaperEnabled"
+        >
           <svg width="12" height="12" viewBox="0 0 12 12">
             <path
               d="M1 1L11 11M1 11L11 1"
@@ -323,10 +326,11 @@ export default {
       isLoggedIn: false,
       userFace: '',
       userName: '',
-      showUserMenu: false,
       removeLoginListener: null,
       removeLogoutListener: null,
       loadingPlaylist: false,
+      wallpaperEnabled: false,
+      externalWallpaper: false,
     };
   },
   methods: {
@@ -351,23 +355,34 @@ export default {
         electronApi.setLoggedIn(false);
       }
     },
-    handleLoginAction() {
-      this.showUserMenu = false;
-      if (this.isLoggedIn) {
-        this.handleReLogin();
-      } else {
+    handleLogoutConfirm() {
+      if (!this.isLoggedIn) {
         this.startLogin();
+        return;
       }
+      this.$confirm('确定要退出登录吗?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+        .then(() => {
+          this.doLogout();
+        })
+        .catch(() => {});
     },
-    async startLogin() {
-      await electronApi.startLogin();
-    },
-    async handleReLogin() {
+    async doLogout() {
       this.userFace = '';
       this.userName = '';
       this.isLoggedIn = false;
       electronApi.setLoggedIn(false);
-      await electronApi.reLogin();
+      await electronApi.executeLogout();
+    },
+    async toggleWallpaper() {
+      this.showUserMenu = false;
+      this.wallpaperEnabled = await electronApi.wallpaperToggle();
+    },
+    async startLogin() {
+      await electronApi.startLogin();
     },
     async loadPlaylist() {
       const saved = await electronApi.getPlaylist();
@@ -651,6 +666,10 @@ export default {
         playMode: this.currentMode,
       });
     },
+    async initWallpaperState() {
+      this.wallpaperEnabled = await electronApi.wallpaperIsEnabled();
+      this.externalWallpaper = await electronApi.wallpaperIsExternal();
+    },
     prev() {
       if (!this.songs || this.songs.length === 0) return;
       const index =
@@ -726,6 +745,15 @@ export default {
     this.removeTrayShowPlaylist = electronApi.onTrayShowPlaylist(() => {
       this.showUrlDialog = true;
     });
+    this.removeTrayShowLogoutConfirm = electronApi.onTrayShowLogoutConfirm(
+      () => {
+        this.handleLogoutConfirm();
+      },
+    );
+    this.removeWallpaperState = electronApi.onWallpaperState((enabled) => {
+      this.wallpaperEnabled = enabled;
+    });
+    this.initWallpaperState();
     this.removeMaximizedListener = electronApi.onMaximized((val) => {
       this.isMaximized = val;
     });
@@ -733,11 +761,6 @@ export default {
       this.isFullscreen = val;
     });
     document.addEventListener('keydown', this.handleKeydown);
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.user-info') && !e.target.closest('.user-menu')) {
-        this.showUserMenu = false;
-      }
-    });
   },
   beforeUnmount() {
     if (this.removeLoginListener) this.removeLoginListener();
@@ -747,6 +770,8 @@ export default {
     if (this.removeTrayNext) this.removeTrayNext();
     if (this.removeTrayToggleMode) this.removeTrayToggleMode();
     if (this.removeTrayShowPlaylist) this.removeTrayShowPlaylist();
+    if (this.removeTrayShowLogoutConfirm) this.removeTrayShowLogoutConfirm();
+    if (this.removeWallpaperState) this.removeWallpaperState();
     if (this.removeMaximizedListener) this.removeMaximizedListener();
     if (this.removeFullscreenListener) this.removeFullscreenListener();
     document.removeEventListener('keydown', this.handleKeydown);
@@ -760,6 +785,7 @@ export default {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  user-select: none;
 }
 #biliVideo {
   position: fixed;
@@ -776,7 +802,7 @@ export default {
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
+  height: 40px;
   z-index: 200;
   display: flex;
   align-items: center;
@@ -794,61 +820,68 @@ export default {
   -webkit-app-region: no-drag;
 }
 
+.titlebar-btn {
+  padding: 0 12px;
+  margin: 0 6px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(0, 0, 0, 0.3);
+  transition: background 0.15s;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .user-info {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(0, 0, 0, 0.3);
   border-radius: 16px;
-  padding: 2px 10px 2px 2px;
-  margin-right: 4px;
+  padding: 3px 12px 3px 3px;
+  margin-left: 6px;
   transition: background 0.2s;
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.5);
 }
 .user-info:hover {
   background: rgba(255, 255, 255, 0.25);
 }
 .user-avatar {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 .user-name {
   color: white;
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  max-width: 100px;
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.5);
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.user-menu {
-  position: absolute;
-  top: 100%;
-  right: 120px;
-  margin-top: 4px;
-  background: rgba(30, 30, 30, 0.92);
-  border-radius: 8px;
-  overflow: hidden;
-  min-width: 120px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-.menu-item {
-  padding: 10px 16px;
-  color: #eee;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.menu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
 }
 
 .win-btn {
@@ -858,9 +891,13 @@ export default {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  margin-left: 6px;
   color: rgba(255, 255, 255, 0.8);
   transition: background 0.15s;
   border-radius: 4px;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(0, 0, 0, 0.3);
 }
 .win-btn:hover {
   background: rgba(255, 255, 255, 0.15);
@@ -868,15 +905,6 @@ export default {
 .win-close:hover {
   background: #e81123 !important;
   color: white;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 
 .fullscreen-btn {

@@ -55,6 +55,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   winToggleFullscreen: () => ipcRenderer.invoke('win:toggleFullscreen'),
   winIsFullscreen: () => ipcRenderer.invoke('win:isFullscreen'),
 
+  wallpaperToggle: () => ipcRenderer.invoke('wallpaper:toggle'),
+  wallpaperIsEnabled: () => ipcRenderer.invoke('wallpaper:isEnabled'),
+  wallpaperIsExternal: () => ipcRenderer.invoke('wallpaper:isExternal'),
+  executeLogout: () => ipcRenderer.invoke('auth:executeLogout'),
+  onTrayShowLogoutConfirm: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:showLogoutConfirm', handler);
+    return () => ipcRenderer.removeListener('tray:showLogoutConfirm', handler);
+  },
+  onWallpaperState: (callback) => {
+    const handler = (_e, enabled) => callback(enabled);
+    ipcRenderer.on('wallpaper:state', handler);
+    return () => ipcRenderer.removeListener('wallpaper:state', handler);
+  },
+
   onLoginSuccess: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('auth:loginSuccess', handler);

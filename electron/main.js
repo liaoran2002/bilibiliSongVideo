@@ -7,11 +7,20 @@ const {
   Tray,
   Menu,
   nativeImage,
+  dialog,
 } = require('electron');
 const path = require('path');
 const cookieManager = require('./cookie');
 const cacheManager = require('./cache');
 const { registerIpcHandlers } = require('./ipcHandlers');
+const { isInWorkerWLayer } = require('./wallpaperDetect');
+
+let asWallpaper;
+try {
+  asWallpaper = require('electron-as-wallpaper');
+} catch {
+  asWallpaper = null;
+}
 
 const isDev = !app.isPackaged;
 
@@ -21,6 +30,10 @@ let tray = null;
 let isLoggedIn = false;
 let isPaused = true;
 let playMode = 0;
+let wallpaperEnabled = false;
+let externalWallpaper = false;
+let savedBounds = null;
+let savedMaximized = false;
 const MODE_NAMES = ['列表循环', '单曲循环', '随机播放'];
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 function createMainWindow() {
@@ -48,6 +61,31 @@ function createMainWindow() {
   mainWindow.setAspectRatio(16 / 9);
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    const shouldWallpaper = process.argv.includes('--wallpaper-mode');
+    const hwnd = mainWindow.getNativeWindowHandle();
+    if (shouldWallpaper || isInWorkerWLayer(hwnd)) {
+      wallpaperEnabled = true;
+      if (shouldWallpaper) {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width, height } = primaryDisplay.size;
+        mainWindow.setBounds({ x: 0, y: 0, width, height });
+        mainWindow.setFullScreen(true);
+        mainWindow.setAlwaysOnTop(true, 'desktop');
+        mainWindow.setVisibleOnAllWorkspaces(true);
+        try {
+          asWallpaper.attach(mainWindow, {
+            transparent: true,
+            forwardMouseInput: true,
+            forwardKeyboardInput: false,
+          });
+        } catch {}
+      }
+      if (tray && !tray.isDestroyed()) {
+        tray.destroy();
+        tray = null;
+      }
+      mainWindow.webContents.send('wallpaper:state', true);
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -71,6 +109,60 @@ function createMainWindow() {
   });
 }
 
+function toggleWallpaper() {
+  if (!asWallpaper || !mainWindow || mainWindow.isDestroyed()) return;
+  wallpaperEnabled = !wallpaperEnabled;
+  if (wallpaperEnabled) {
+    savedMaximized = mainWindow.isMaximized();
+    savedBounds = mainWindow.getBounds();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+    mainWindow.setBounds({ x: 0, y: 0, width, height });
+    mainWindow.setFullScreen(true);
+    mainWindow.setAlwaysOnTop(true, 'desktop');
+    mainWindow.setVisibleOnAllWorkspaces(true);
+    try {
+      asWallpaper.attach(mainWindow, {
+        transparent: true,
+        forwardMouseInput: true,
+        forwardKeyboardInput: false,
+      });
+    } catch {}
+    if (tray && !tray.isDestroyed()) {
+      tray.destroy();
+      tray = null;
+    }
+  } else {
+    try {
+      asWallpaper.detach(mainWindow);
+    } catch {}
+    try {
+      asWallpaper.reset();
+    } catch {}
+    mainWindow.setFullScreen(false);
+    mainWindow.setAlwaysOnTop(false);
+    const boundsToRestore = savedBounds;
+    const maximizedToRestore = savedMaximized;
+    savedBounds = null;
+    savedMaximized = false;
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.unmaximize();
+      if (boundsToRestore) {
+        mainWindow.setBounds(boundsToRestore);
+        if (maximizedToRestore) {
+          mainWindow.maximize();
+        }
+      }
+    }, 50);
+    createTray();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('wallpaper:state', wallpaperEnabled);
+  }
+  buildTrayMenu();
+}
+
 function createLoginWindow() {
   if (loginWindow && !loginWindow.isDestroyed()) {
     loginWindow.focus();
@@ -83,12 +175,33 @@ function createLoginWindow() {
     parent: mainWindow,
     modal: true,
     title: '账号登录',
+    frame: false,
     webPreferences: {
       session: session.defaultSession,
     },
   });
 
   loginWindow.loadURL('https://passport.bilibili.com/login');
+
+  loginWindow.webContents.on('dom-ready', () => {
+    loginWindow.webContents.insertCSS(`
+      .mimo-close-btn {
+        position: fixed; top: 0; right: 0; z-index: 99999;
+        width: 36px; height: 36px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; color: rgba(0,0,0,0.4);
+        transition: background 0.15s, color 0.15s;
+      }
+      .mimo-close-btn:hover { background: #e81123; color: white; }
+    `);
+    loginWindow.webContents.executeJavaScript(`
+      const btn = document.createElement('div');
+      btn.className = 'mimo-close-btn';
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+      btn.onclick = () => window.close();
+      document.body.appendChild(btn);
+    `);
+  });
 
   loginWindow.webContents.on('did-navigate', async (_event, url) => {
     if (
@@ -150,32 +263,20 @@ function buildTrayMenu() {
         }
       },
     },
+    {
+      label: wallpaperEnabled ? '应用程序' : '桌面壁纸',
+      click: () => toggleWallpaper(),
+    },
     { type: 'separator' },
     {
       label: isLoggedIn ? '退出登录' : '登录',
-      click: async () => {
+      click: () => {
         if (isLoggedIn) {
-          isLoggedIn = false;
-          const fs = require('fs');
-          const infoPath = path.join(app.getPath('userData'), 'userInfo.json');
-          if (fs.existsSync(infoPath)) fs.unlinkSync(infoPath);
-          const cookies = await session.defaultSession.cookies.get({});
-          for (const c of cookies) {
-            if (
-              c.name === 'SESSDATA' ||
-              c.name === 'bili_jct' ||
-              c.name === 'DedeUserID'
-            ) {
-              await session.defaultSession.cookies.remove(
-                `http${c.secure ? 's' : ''}://${c.domain.replace(/^\./, '')}${c.path}`,
-                c.name,
-              );
-            }
-          }
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('auth:logout');
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('tray:showLogoutConfirm');
           }
-          buildTrayMenu();
         } else {
           createLoginWindow();
         }
@@ -193,8 +294,8 @@ function buildTrayMenu() {
 
 function createTray() {
   const iconPath = isDev
-    ? path.join(__dirname, '../public/favicon.ico')
-    : path.join(__dirname, '../dist/favicon.ico');
+    ? path.join(__dirname, '../public/bilibili.ico')
+    : path.join(__dirname, '../dist/bilibili.ico');
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
   tray.setToolTip('B站音乐视频');
@@ -283,6 +384,38 @@ app.whenReady().then(async () => {
     return mainWindow.isFullScreen();
   });
   ipcMain.handle('win:isFullscreen', () => mainWindow?.isFullScreen() ?? false);
+
+  ipcMain.handle('wallpaper:toggle', () => {
+    toggleWallpaper();
+    return wallpaperEnabled;
+  });
+
+  ipcMain.handle('wallpaper:isEnabled', () => wallpaperEnabled);
+  ipcMain.handle('wallpaper:isExternal', () => externalWallpaper);
+
+  ipcMain.handle('auth:executeLogout', async () => {
+    isLoggedIn = false;
+    const fs = require('fs');
+    const infoPath = path.join(app.getPath('userData'), 'userInfo.json');
+    if (fs.existsSync(infoPath)) fs.unlinkSync(infoPath);
+    const cookies = await session.defaultSession.cookies.get({});
+    for (const c of cookies) {
+      if (
+        c.name === 'SESSDATA' ||
+        c.name === 'bili_jct' ||
+        c.name === 'DedeUserID'
+      ) {
+        await session.defaultSession.cookies.remove(
+          `http${c.secure ? 's' : ''}://${c.domain.replace(/^\./, '')}${c.path}`,
+          c.name,
+        );
+      }
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auth:logout');
+    }
+    buildTrayMenu();
+  });
 
   ipcMain.handle('auth:setLoggedIn', (_event, loggedIn) => {
     isLoggedIn = loggedIn;

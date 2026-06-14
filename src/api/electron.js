@@ -31,6 +31,13 @@ export default {
   winToggleFullscreen: () => api.winToggleFullscreen(),
   winIsFullscreen: () => api.winIsFullscreen(),
 
+  wallpaperToggle: () => api.wallpaperToggle(),
+  wallpaperIsEnabled: () => api.wallpaperIsEnabled(),
+  wallpaperIsExternal: () => api.wallpaperIsExternal(),
+  executeLogout: () => api.executeLogout(),
+  onTrayShowLogoutConfirm: (callback) => api.onTrayShowLogoutConfirm(callback),
+  onWallpaperState: (callback) => api.onWallpaperState(callback),
+
   onLoginSuccess: (callback) => api.onLoginSuccess(callback),
   onLogout: (callback) => api.onLogout(callback),
   onMaximized: (callback) => api.onMaximized(callback),
