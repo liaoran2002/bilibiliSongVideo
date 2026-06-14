@@ -64,6 +64,7 @@ function createMainWindow() {
     const shouldWallpaper = process.argv.includes('--wallpaper-mode');
     const hwnd = mainWindow.getNativeWindowHandle();
     if (shouldWallpaper || isInWorkerWLayer(hwnd)) {
+      externalWallpaper = true;
       wallpaperEnabled = true;
       if (shouldWallpaper) {
         const primaryDisplay = screen.getPrimaryDisplay();
@@ -183,6 +184,16 @@ function createLoginWindow() {
 
   loginWindow.loadURL('https://passport.bilibili.com/login');
 
+  let loginAutoCloseTimer = null;
+  const isLoginWallpaper = wallpaperEnabled || externalWallpaper;
+  if (isLoginWallpaper) {
+    loginAutoCloseTimer = setTimeout(() => {
+      if (loginWindow && !loginWindow.isDestroyed()) {
+        loginWindow.close();
+      }
+    }, 15000);
+  }
+
   loginWindow.webContents.on('dom-ready', () => {
     loginWindow.webContents.insertCSS(`
       .mimo-close-btn {
@@ -193,13 +204,43 @@ function createLoginWindow() {
         transition: background 0.15s, color 0.15s;
       }
       .mimo-close-btn:hover { background: #e81123; color: white; }
+      .mimo-countdown {
+        position: fixed; top: 0; left: 0; z-index: 99999;
+        padding: 4px 12px;
+        font-size: 30px; font-weight: 700;
+        color: #e81123;
+        pointer-events: none;
+        font-family: system-ui, sans-serif;
+      }
     `);
     loginWindow.webContents.executeJavaScript(`
+      ${
+        !isLoginWallpaper
+          ? `
       const btn = document.createElement('div');
       btn.className = 'mimo-close-btn';
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       btn.onclick = () => window.close();
       document.body.appendChild(btn);
+      `
+          : ''
+      }
+      ${
+        isLoginWallpaper
+          ? `
+      const cd = document.createElement('div');
+      cd.className = 'mimo-countdown';
+      document.body.appendChild(cd);
+      let remain = 15;
+      cd.textContent = remain + '秒 后自动关闭,请尽快登录';
+      const iv = setInterval(() => {
+        remain--;
+        if (remain <= 0) { clearInterval(iv); return; }
+        cd.textContent = remain + '秒 后自动关闭,请尽快登录';
+      }, 1000);
+      `
+          : ''
+      }
     `);
   });
 
@@ -211,6 +252,7 @@ function createLoginWindow() {
       const cookies = await session.defaultSession.cookies.get({});
       const hasSESSDATA = cookies.some((c) => c.name === 'SESSDATA');
       if (hasSESSDATA) {
+        if (loginAutoCloseTimer) clearTimeout(loginAutoCloseTimer);
         if (loginWindow && !loginWindow.isDestroyed()) {
           loginWindow.close();
         }
@@ -225,6 +267,7 @@ function createLoginWindow() {
   });
 
   loginWindow.on('closed', () => {
+    if (loginAutoCloseTimer) clearTimeout(loginAutoCloseTimer);
     loginWindow = null;
   });
 }
