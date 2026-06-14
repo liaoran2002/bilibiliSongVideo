@@ -26,22 +26,20 @@ function writeJsonFile(filePath, data) {
 function registerIpcHandlers(context) {
   const { cookieManager, cacheManager, createLoginWindow } = context;
 
-  ipcMain.handle('cookie:check', async () => {
-    return cookieManager.hasValidCookies();
-  });
-
-  ipcMain.handle('cookie:clear', async () => {
-    return cookieManager.clearCookies();
-  });
-
   ipcMain.handle('auth:startLogin', async () => {
     createLoginWindow();
   });
 
   ipcMain.handle('auth:reLogin', async () => {
-    await cookieManager.clearCookies();
     const infoPath = getUserInfoPath();
     if (fs.existsSync(infoPath)) fs.unlinkSync(infoPath);
+    const { session } = require('electron');
+    const cookies = await session.defaultSession.cookies.get({});
+    for (const c of cookies) {
+      if (c.name === 'SESSDATA' || c.name === 'bili_jct' || c.name === 'DedeUserID') {
+        await session.defaultSession.cookies.remove(`http${c.secure ? 's' : ''}://${c.domain.replace(/^\./, '')}${c.path}`, c.name);
+      }
+    }
     createLoginWindow();
   });
 
@@ -74,10 +72,6 @@ function registerIpcHandlers(context) {
     const result = await biliApi.searchSong(keyword, cookieStr);
 
     if (result.code !== 0) {
-      if (result.code === -101 || result.code === -403) {
-        await cookieManager.clearCookies();
-        throw new Error('AUTH_FAILED');
-      }
       throw new Error(result.message || '搜索失败');
     }
 

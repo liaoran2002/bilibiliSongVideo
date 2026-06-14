@@ -1,170 +1,172 @@
 <template>
   <div id="app">
-    <div v-if="!isLoggedIn" class="login-overlay">
-      <div class="login-dialog">
-        <h2>B站音乐视频播放器</h2>
-        <p>请先登录B站账号以使用搜索和播放功能</p>
-        <el-button type="primary" size="large" @click="startLogin"
-          >登录B站</el-button
+    <div class="titlebar">
+      <div class="titlebar-drag"></div>
+      <div class="titlebar-right">
+        <div class="user-info" @click="showUserMenu = !showUserMenu">
+          <img
+            v-if="userFace"
+            :src="userFace"
+            class="user-avatar"
+            referrerpolicy="no-referrer"
+          />
+          <span class="user-name">{{ userName || '未登录' }}</span>
+        </div>
+        <transition name="fade">
+          <div v-if="showUserMenu" class="user-menu">
+            <div
+              class="menu-item"
+              @click="
+                showUrlDialog = true;
+                showUserMenu = false;
+              "
+            >
+              设置歌单
+            </div>
+            <div class="menu-item" @click="handleLoginAction">
+              {{ isLoggedIn ? '退出登录' : '登录' }}
+            </div>
+          </div>
+        </transition>
+        <div class="win-btn" @click="winMinimize" title="最小化">
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <rect y="5" width="12" height="1" fill="currentColor" />
+          </svg>
+        </div>
+        <div
+          class="win-btn"
+          @click="winMaximize"
+          :title="isMaximized ? '向下还原' : '最大化'"
         >
+          <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12">
+            <rect
+              x="1"
+              y="1"
+              width="10"
+              height="10"
+              rx="1"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+          </svg>
+          <svg v-else width="12" height="12" viewBox="0 0 12 12">
+            <rect
+              x="2.5"
+              y="3.5"
+              width="7"
+              height="7"
+              rx="0.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <path
+              d="M4 3.5V2a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+          </svg>
+        </div>
+        <div class="win-btn win-close" @click="winClose" title="关闭">
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <path
+              d="M1 1L11 11M1 11L11 1"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+          </svg>
+        </div>
       </div>
     </div>
 
-    <template v-else>
-      <div class="titlebar">
-        <div class="titlebar-drag"></div>
-        <div class="titlebar-right">
-          <div class="user-info" @click="showUserMenu = !showUserMenu">
-            <img v-if="userFace" :src="userFace" class="user-avatar" />
-            <span v-if="userName" class="user-name">{{ userName }}</span>
-          </div>
-          <transition name="fade">
-            <div v-if="showUserMenu" class="user-menu">
-              <div
-                class="menu-item"
-                @click="
-                  showUrlDialog = true;
-                  showUserMenu = false;
-                "
-              >
-                设置歌单
-              </div>
-              <div class="menu-item" @click="handleReLogin">退出登录</div>
-            </div>
-          </transition>
-          <div class="win-btn" @click="winMinimize" title="最小化">
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <rect y="5" width="12" height="1" fill="currentColor" />
-            </svg>
-          </div>
-          <div
-            class="win-btn"
-            @click="winMaximize"
-            :title="isMaximized ? '向下还原' : '最大化'"
-          >
-            <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12">
-              <rect
-                x="1"
-                y="1"
-                width="10"
-                height="10"
-                rx="1"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1"
-              />
-            </svg>
-            <svg v-else width="12" height="12" viewBox="0 0 12 12">
-              <rect
-                x="2.5"
-                y="3.5"
-                width="7"
-                height="7"
-                rx="0.5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1"
-              />
-              <path
-                d="M4 3.5V2a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H8"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1"
-              />
-            </svg>
-          </div>
-          <div class="win-btn win-close" @click="winClose" title="关闭">
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <path
-                d="M1 1L11 11M1 11L11 1"
-                stroke="currentColor"
-                stroke-width="1.2"
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
+    <video
+      id="biliVideo"
+      :src="videoUrl"
+      ref="video"
+      @canplay="videoCanPlay"
+      @loadeddata="onVideoLoaded"
+      @timeupdate="videoUpDate"
+      @ended="videoEnded"
+    ></video>
+    <showList
+      :listType="listType"
+      :title="listType == 'list' ? listName : songName"
+      :list="listType == 'list' ? songs : videoList"
+      @showList="showList"
+      @changeSong="changeSong"
+      @changeVideo="changeVideo"
+    ></showList>
+    <biliVideoControls
+      :videoName="videoName"
+      :currentMode="currentMode"
+      :currentVolume="currentVolume"
+      :isMuted="isMuted"
+      :currentTime="currentTime"
+      :duration="duration"
+      :paused="paused"
+      :listType="listType"
+      @videoControl="videoControl"
+      @changeTime="changeTime"
+      @changeVolume="changeVolume"
+    ></biliVideoControls>
 
-      <video
-        id="biliVideo"
-        :src="videoUrl"
-        ref="video"
-        @canplay="videoCanPlay"
-        @timeupdate="videoUpDate"
-        @ended="videoEnded"
-        autoplay
-      ></video>
-      <showList
-        :listType="listType"
-        :title="listType == 'list' ? listName : songName"
-        :list="listType == 'list' ? songs : videoList"
-        @showList="showList"
-        @changeSong="changeSong"
-        @changeVideo="changeVideo"
-      ></showList>
-      <biliVideoControls
-        :videoName="videoName"
-        :currentMode="currentMode"
-        :currentVolume="currentVolume"
-        :isMuted="isMuted"
-        :currentTime="currentTime"
-        :duration="duration"
-        :paused="paused"
-        :listType="listType"
-        @videoControl="videoControl"
-        @changeTime="changeTime"
-        @changeVolume="changeVolume"
-      ></biliVideoControls>
-
-      <div
-        class="fullscreen-btn"
-        @click="toggleFullscreen"
-        :title="isFullscreen ? '退出全屏' : '全屏'"
+    <div
+      class="fullscreen-btn"
+      @click="toggleFullscreen"
+      :title="isFullscreen ? '退出全屏' : '全屏'"
+    >
+      <svg
+        v-if="!isFullscreen"
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
       >
-        <svg
-          v-if="!isFullscreen"
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
+        <path
+          d="M3 7V3H7M13 3H17V7M17 13V17H13M7 17H3V13"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path
+          d="M7 3V7H3M17 7H13V3M13 17V13H17M3 13H7V17"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </div>
+
+    <el-dialog
+      v-model="showUrlDialog"
+      title="设置歌单链接"
+      width="500px"
+      :close-on-click-modal="!playlistRequired"
+    >
+      <el-input
+        v-model="songListUrlInput"
+        placeholder="请输入歌单链接"
+      ></el-input>
+      <template #footer>
+        <el-button v-if="!playlistRequired" @click="showUrlDialog = false"
+          >取消</el-button
         >
-          <path
-            d="M3 7V3H7M13 3H17V7M17 13V17H13M7 17H3V13"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M7 3V7H3M17 7H13V3M13 17V13H17M3 13H7V17"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-
-      <el-dialog
-        v-model="showUrlDialog"
-        title="设置歌单链接"
-        width="500px"
-        :close-on-click-modal="!playlistRequired"
-      >
-        <el-input
-          v-model="songListUrlInput"
-          placeholder="请输入歌单链接"
-        ></el-input>
-        <template #footer>
-          <el-button v-if="!playlistRequired" @click="showUrlDialog = false"
-            >取消</el-button
-          >
-          <el-button type="primary" @click="confirmSongListUrl">确定</el-button>
-        </template>
-      </el-dialog>
-    </template>
+        <el-button
+          type="primary"
+          :loading="loadingPlaylist"
+          :disabled="loadingPlaylist"
+          @click="confirmSongListUrl"
+        >
+          {{ loadingPlaylist ? '加载中...' : '确定' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -172,14 +174,12 @@
 import biliVideoControls from './components/biliVideoControls.vue';
 import showList from './components/showList.vue';
 import electronApi from './api/electron';
-import { th } from 'element-plus/es/locales.mjs';
 
 export default {
   name: 'App',
   components: { biliVideoControls, showList },
   data() {
     return {
-      isLoggedIn: false,
       songs: [],
       videoList: [],
       videoUrl: '',
@@ -199,27 +199,142 @@ export default {
       showUrlDialog: false,
       songListUrlInput: '',
       playlistRequired: false,
+      isMaximized: false,
+      isFullscreen: false,
+      removeMaximizedListener: null,
+      removeFullscreenListener: null,
+      _songToken: 0,
+      tagBonusConfig: {
+        5: [
+          'MV',
+          'Official',
+          '官方',
+          '原唱版',
+          '华语MV',
+          '原版',
+          '蓝光',
+          '超清',
+          '4K',
+        ],
+        3: [
+          'Live',
+          '高清',
+          '无损',
+          'Hi-Res',
+          'Hi-Fi',
+          '高音质',
+          '录音棚',
+          '动态歌词',
+          '微电影',
+          '音乐现场',
+          '演唱会',
+          '舞台',
+          '原画',
+          '8K',
+          '2K',
+          '1080P',
+          '杜比音效',
+          '全景声',
+          'DTS',
+          '母带音质',
+          '现场版',
+          '巡演',
+          '音乐节',
+          '录音室',
+          '超清原画',
+          '动态频谱',
+          '沉浸式音效',
+        ],
+        '-2': [
+          '翻唱',
+          '合唱',
+          '阿卡贝拉',
+          '书本打击',
+          '音乐可视化',
+          '音高可视化',
+          '录屏',
+          '歌单',
+          '精选歌单',
+          '电台',
+          '改编',
+          '萌系翻唱',
+          '双人合唱',
+          '多人合唱',
+          '可视化音频',
+          '歌词可视化',
+          '录屏版',
+          '私人歌单',
+          '主题歌单',
+          '音乐电台',
+          '情感电台',
+          '分享',
+          '推荐',
+          '翻唱合集',
+          '混剪',
+          '卡点',
+        ],
+        '-4': [
+          '演奏',
+          '口琴',
+          '萨克斯',
+          '吉他',
+          '架子鼓',
+          '非洲鼓',
+          '钢琴',
+          '古筝',
+          '打击乐',
+          '小提琴',
+          '大提琴',
+          '二胡',
+          '琵琶',
+          '竹笛',
+          '扬琴',
+          '贝斯',
+          '电子琴',
+          '手鼓',
+          '马林巴',
+          '纯音乐演奏',
+          '乐器独奏',
+          '乐器合奏',
+          '即兴演奏',
+          '指弹吉他',
+        ],
+        '-6': [
+          '教学',
+          '教程',
+          '鼓谱',
+          '吉他谱',
+          '动态鼓谱',
+          '卡拉OK',
+          '歌词排版',
+          'VJ素材',
+          '零基础教学',
+          '进阶教程',
+          '钢琴谱',
+          '简谱',
+          '五线谱',
+          '动态谱',
+          '字幕排版',
+          'VJ循环素材',
+          '背景音乐素材',
+        ],
+        '-20': ['伴奏', '纯伴奏', '无和声', '消音', 'instrumental'],
+      },
+      isLoggedIn: false,
       userFace: '',
       userName: '',
       showUserMenu: false,
-      isMaximized: false,
-      isFullscreen: false,
       removeLoginListener: null,
-      removeMaximizedListener: null,
-      removeFullscreenListener: null,
+      removeLogoutListener: null,
+      loadingPlaylist: false,
     };
   },
   methods: {
     async init() {
-      const hasCookie = await electronApi.checkCookie();
-      if (!hasCookie) {
-        this.isLoggedIn = false;
-        return;
-      }
-      this.isLoggedIn = true;
       this.isMaximized = await electronApi.winIsMaximized();
       this.isFullscreen = await electronApi.winIsFullscreen();
       this.loadUserInfo();
+      this.syncTrayState();
       await this.loadPlaylist();
     },
     async loadUserInfo() {
@@ -227,7 +342,32 @@ export default {
         const info = await electronApi.getUserInfo();
         this.userFace = info.face;
         this.userName = info.name;
-      } catch {}
+        this.isLoggedIn = true;
+        electronApi.setLoggedIn(true);
+      } catch {
+        this.isLoggedIn = false;
+        this.userFace = '';
+        this.userName = '';
+        electronApi.setLoggedIn(false);
+      }
+    },
+    handleLoginAction() {
+      this.showUserMenu = false;
+      if (this.isLoggedIn) {
+        this.handleReLogin();
+      } else {
+        this.startLogin();
+      }
+    },
+    async startLogin() {
+      await electronApi.startLogin();
+    },
+    async handleReLogin() {
+      this.userFace = '';
+      this.userName = '';
+      this.isLoggedIn = false;
+      electronApi.setLoggedIn(false);
+      await electronApi.reLogin();
     },
     async loadPlaylist() {
       const saved = await electronApi.getPlaylist();
@@ -255,6 +395,7 @@ export default {
         this.$message.warning('请输入歌单链接');
         return;
       }
+      this.loadingPlaylist = true;
       try {
         const res = await electronApi.fetchSongList(this.songListUrlInput);
         const playlist = { name: res.name || '', songs: res.songs || [] };
@@ -268,14 +409,9 @@ export default {
         this.$message.success('歌单加载成功');
       } catch (err) {
         this.$message.error(err.message);
+      } finally {
+        this.loadingPlaylist = false;
       }
-    },
-    async startLogin() {
-      await electronApi.startLogin();
-    },
-    async handleReLogin() {
-      this.showUserMenu = false;
-      await electronApi.reLogin();
     },
     winMinimize() {
       electronApi.winMinimize();
@@ -298,7 +434,18 @@ export default {
     videoCanPlay() {
       this.video = this.$refs.video;
     },
+    onVideoLoaded() {
+      const v = this.$refs.video;
+      if (v) {
+        v.volume = this.currentVolume / 100;
+        if (this.isMuted) v.muted = true;
+        v.play().catch(() => {});
+        this.paused = false;
+        this.syncTrayState();
+      }
+    },
     videoUpDate() {
+      if (!this.$refs.video) return;
       this.currentTime = this.$refs.video.currentTime;
       this.duration = this.$refs.video.duration;
     },
@@ -336,6 +483,7 @@ export default {
       if (this.paused) this.$refs.video.play();
       else this.$refs.video.pause();
       this.paused = !this.paused;
+      this.syncTrayState();
     },
     changeTime(time) {
       if (this.paused) {
@@ -358,7 +506,6 @@ export default {
       return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
     },
     handleKeydown(e) {
-      if (!this.isLoggedIn) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')
         return;
 
@@ -404,46 +551,91 @@ export default {
       }
     },
     async changeSong(index) {
-      if (!this.isLoggedIn) return;
       const songName = this.getSongName(index);
       if (!songName) return;
+      const token = ++this._songToken;
+      this.paused = false;
       try {
         const res = await electronApi.searchSong(songName);
+        if (token !== this._songToken) return;
+        const all = res.result || [];
+        const videos = all.filter((item) => item.type == 'video' || item.bvid);
+        const keywords = songName.replace(/-/g, '').trim();
+        const parts = songName.split('-').map((s) => s.trim());
+        const realSongName = parts[0] || '';
+        const artistName = parts[1] || '';
+        videos.sort((a, b) => {
+          const sa =
+            this.matchScore(a.title, keywords) +
+            this.nameBonus(a.title, realSongName, artistName);
+          const sb =
+            this.matchScore(b.title, keywords) +
+            this.nameBonus(b.title, realSongName, artistName);
+          return sb + this.tagBonus(b.title) - (sa + this.tagBonus(a.title));
+        });
         this.currentIndex = index;
         this.songName = songName;
-        this.videoList =
-          res.result.filter((item) => item.type == 'video') || [];
-        if (this.videoList.length > 0) {
-          this.changeVideo(this.videoList[0].bvid);
+        this.videoList = videos;
+        if (videos.length > 0) {
+          await this.changeVideo(videos[0].bvid);
+        } else {
+          this.$message.warning(`《${songName}》未找到视频`);
         }
       } catch (err) {
-        if (err.message === 'AUTH_FAILED' || err.message === 'NO_COOKIE') {
-          this.isLoggedIn = false;
-          this.$message.error('登录已过期，请重新登录');
-          return;
-        }
+        if (token !== this._songToken) return;
         this.$message.error(`《${songName}》${err.message}`);
       }
     },
     async changeVideo(bvid) {
-      if (!this.isLoggedIn) return;
       try {
         const res = await electronApi.resolveVideoUrl(bvid);
         this.videoUrl = res.videoUrl;
         const video = this.videoList.find((item) => item.bvid === bvid);
         this.videoName = video ? video.title : '';
       } catch (err) {
-        if (err.message === 'AUTH_FAILED' || err.message === 'NO_COOKIE') {
-          this.isLoggedIn = false;
-          this.$message.error('登录已过期，请重新登录');
-          return;
-        }
         this.$message.error(err.message);
       }
     },
     getSongName(index) {
       if (!this.songs || this.songs.length === 0) return null;
       return this.songs[index];
+    },
+    matchScore(title, keywords) {
+      const t = (title || '').replace(/<[^>]*>/g, '').toLowerCase();
+      const k = keywords.toLowerCase().replace(/\s/g, '');
+      let score = 0;
+      let remaining = t;
+      for (const ch of k) {
+        const idx = remaining.indexOf(ch);
+        if (idx !== -1) {
+          score++;
+          remaining = remaining.slice(0, idx) + remaining.slice(idx + 1);
+        }
+      }
+      return score;
+    },
+    tagBonus(title) {
+      const t = (title || '').replace(/<[^>]*>/g, '');
+      let bonus = 0;
+      for (const [score, keywords] of Object.entries(this.tagBonusConfig)) {
+        for (const kw of keywords) {
+          if (t.toLowerCase().includes(kw.toLowerCase())) {
+            bonus += Number(score);
+          }
+        }
+      }
+      return bonus;
+    },
+    nameBonus(title, songName, artistName) {
+      if (!title) return 0;
+      const t = title.replace(/<[^>]*>/g, '');
+      let bonus = 0;
+      const songMatch = songName && t.includes(songName);
+      const artistMatch = artistName && t.includes(artistName);
+      if (songMatch) bonus += 5;
+      if (artistMatch) bonus += 3;
+      if (songMatch && artistMatch) bonus += 5;
+      return bonus;
     },
     next() {
       if (!this.songs || this.songs.length === 0) return;
@@ -452,6 +644,12 @@ export default {
           ? this.getRandomNext()
           : (this.currentIndex + 1) % this.songs.length;
       this.changeSong(index);
+    },
+    syncTrayState() {
+      electronApi.trayUpdateState({
+        paused: this.paused,
+        playMode: this.currentMode,
+      });
     },
     prev() {
       if (!this.songs || this.songs.length === 0) return;
@@ -464,6 +662,7 @@ export default {
     toggleMode() {
       this.currentMode = (this.currentMode + 1) % 3;
       if (this.currentMode === this.MODE.RANDOM) this.resetRandomList();
+      this.syncTrayState();
     },
     getRandomNext() {
       if (this.randomList.length === 0) this.resetRandomList();
@@ -505,9 +704,27 @@ export default {
   mounted() {
     this.init();
     this.removeLoginListener = electronApi.onLoginSuccess(() => {
-      this.isLoggedIn = true;
       this.loadUserInfo();
-      this.loadPlaylist();
+    });
+    this.removeLogoutListener = electronApi.onLogout(() => {
+      this.isLoggedIn = false;
+      this.userFace = '';
+      this.userName = '';
+    });
+    this.removeTrayPlayControl = electronApi.onTrayPlayControl(() => {
+      this.playControl();
+    });
+    this.removeTrayPrev = electronApi.onTrayPrev(() => {
+      this.prev();
+    });
+    this.removeTrayNext = electronApi.onTrayNext(() => {
+      this.next();
+    });
+    this.removeTrayToggleMode = electronApi.onTrayToggleMode(() => {
+      this.toggleMode();
+    });
+    this.removeTrayShowPlaylist = electronApi.onTrayShowPlaylist(() => {
+      this.showUrlDialog = true;
     });
     this.removeMaximizedListener = electronApi.onMaximized((val) => {
       this.isMaximized = val;
@@ -524,6 +741,12 @@ export default {
   },
   beforeUnmount() {
     if (this.removeLoginListener) this.removeLoginListener();
+    if (this.removeLogoutListener) this.removeLogoutListener();
+    if (this.removeTrayPlayControl) this.removeTrayPlayControl();
+    if (this.removeTrayPrev) this.removeTrayPrev();
+    if (this.removeTrayNext) this.removeTrayNext();
+    if (this.removeTrayToggleMode) this.removeTrayToggleMode();
+    if (this.removeTrayShowPlaylist) this.removeTrayShowPlaylist();
     if (this.removeMaximizedListener) this.removeMaximizedListener();
     if (this.removeFullscreenListener) this.removeFullscreenListener();
     document.removeEventListener('keydown', this.handleKeydown);
@@ -546,36 +769,6 @@ export default {
   height: 100%;
   object-fit: contain;
   z-index: 0;
-}
-
-.login-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-.login-dialog {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
-  padding: 40px 50px;
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-.login-dialog h2 {
-  margin: 0 0 12px 0;
-  color: #333;
-  font-size: 24px;
-}
-.login-dialog p {
-  margin: 0 0 24px 0;
-  color: #666;
-  font-size: 14px;
 }
 
 .titlebar {
@@ -602,6 +795,7 @@ export default {
 }
 
 .user-info {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -636,7 +830,7 @@ export default {
 .user-menu {
   position: absolute;
   top: 100%;
-  right: 60px;
+  right: 120px;
   margin-top: 4px;
   background: rgba(30, 30, 30, 0.92);
   border-radius: 8px;

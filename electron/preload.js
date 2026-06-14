@@ -1,11 +1,41 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  checkCookie: () => ipcRenderer.invoke('cookie:check'),
-  clearCookie: () => ipcRenderer.invoke('cookie:clear'),
-
   startLogin: () => ipcRenderer.invoke('auth:startLogin'),
   reLogin: () => ipcRenderer.invoke('auth:reLogin'),
+  setLoggedIn: (val) => ipcRenderer.invoke('auth:setLoggedIn', val),
+  trayUpdateState: (state) => ipcRenderer.invoke('tray:updateState', state),
+
+  onLogout: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('auth:logout', handler);
+    return () => ipcRenderer.removeListener('auth:logout', handler);
+  },
+  onTrayPlayControl: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:playControl', handler);
+    return () => ipcRenderer.removeListener('tray:playControl', handler);
+  },
+  onTrayPrev: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:prev', handler);
+    return () => ipcRenderer.removeListener('tray:prev', handler);
+  },
+  onTrayNext: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:next', handler);
+    return () => ipcRenderer.removeListener('tray:next', handler);
+  },
+  onTrayToggleMode: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:toggleMode', handler);
+    return () => ipcRenderer.removeListener('tray:toggleMode', handler);
+  },
+  onTrayShowPlaylist: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('tray:showPlaylist', handler);
+    return () => ipcRenderer.removeListener('tray:showPlaylist', handler);
+  },
 
   getUserInfo: () => ipcRenderer.invoke('api:getUserInfo'),
   searchSong: (keyword) => ipcRenderer.invoke('api:searchSong', keyword),
