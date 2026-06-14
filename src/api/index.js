@@ -1,9 +1,9 @@
 import http from './httpRequest'
 
 export function searchSong(keyword) {
-  return http.post('/biliapi/search_song', { keyword })
+  return http.post('/search_song', { keyword })
 }
 
 export function resolveVideo(bvid) {
-  return http.post('/biliapi/resolve_video', { bvid })
+  return http.post('/resolve_video', { bvid })
 }

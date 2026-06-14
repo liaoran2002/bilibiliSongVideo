@@ -1,12 +1,12 @@
 <template>
 	<div id="list" v-show="listType!='none'">
-		<div id="listMask" @click="$emit('showList','none')"></div>
+		<div id="listMask" @click="executeMethod('showList','none')"></div>
 		<div class="list">
 			<div class="listTitle">{{ title }}</div>
 			<div class="listBody">
 				<ul class="lists">
 					<li :key="index" v-for="(item,index) in list"
-						@click="listType=='list'?$emit('changeSong',index):$emit('changeVideo',item['bvid'])">
+						@click="listType=='list'?executeMethod('changeSong',index):executeMethod('changeVideo',item['bvid'])">
 						<div class="index">{{ index + 1 }}</div>
 						<div class="title" v-html="listType=='list'?item:item['title']"></div>
 					</li>
@@ -19,10 +19,31 @@
 <script>
 	export default {
 		name: "showList",
+		data() {
+			return {
+
+			}
+		},
 		props: {
-			title: { type: String, default: "" },
-			list: { type: Array, required: true },
-			listType: { type: String, default: "none" }
+			title: {
+				type: String,
+				default: "",
+				required: true
+			},
+			list: {
+				type: Array,
+				required: true
+			},
+			listType: {
+				type: String,
+				default: "none",
+				required: true
+			}
+		},
+		methods: {
+			executeMethod(methodName, event) {
+				this.$emit(methodName, event);
+			},
 		}
 	}
 </script>

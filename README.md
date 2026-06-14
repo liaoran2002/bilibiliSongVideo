@@ -1,5 +1,5 @@
 # bilibiliSongVideo
-这是一个从B站(https://www.bilibili.com/)获取歌单里音乐的视频自动播放的网页，有HTML和VUE两个版本。
+一个从B站获取歌单里音乐的视频进行播放的项目
 
 ## 项目安装
 ```

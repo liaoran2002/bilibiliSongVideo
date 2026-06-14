@@ -4,11 +4,11 @@
 			<div id="videoName" v-html="videoName"></div>
 		</div>
 		<div id="controls">
-			<i :class="['iconfont',listType=='list'?'icon-cuowu':'icon-yinleliebiao']" @click="$emit('videoControl','list')" id="list"></i>
-			<i :class="['iconfont',listType=='vList'?'icon-cuowu':'icon-bofangliebiao']" @click="$emit('videoControl','vList')" id="vList"></i>
-			<i class="iconfont icon-play-previous" @click="$emit('videoControl','before')" id="before"></i>
-			<i :class="['iconfont',paused?'icon-play':'icon-pause']" @click="$emit('videoControl','playControls')" id="playControls"></i>
-			<i class="iconfont icon-play-next" @click="$emit('videoControl','next')" id="next"></i>
+			<i :class="['iconfont',listType=='list'?'icon-cuowu':'icon-yinleliebiao']" @click="executeMethod('videoControl','list')" id="list"></i>
+			<i :class="['iconfont',listType=='vList'?'icon-cuowu':'icon-bofangliebiao']" @click="executeMethod('videoControl','vList')" id="vList"></i>
+			<i class="iconfont icon-play-previous" @click="executeMethod('videoControl','before')" id="before"></i>
+			<i :class="['iconfont',paused?'icon-play':'icon-pause']" @click="executeMethod('videoControl','playControls')" id="playControls"></i>
+			<i class="iconfont icon-play-next" @click="executeMethod('videoControl','next')" id="next"></i>
 			<div class="audio-control">
 				<i :class="['iconfont',isMuted?'icon-sound-off':'icon-sound-on']" @click="toggleMute" id="sound"></i>
 				<div :class="['volume-slider', isSoundDragging ? 'show' : '']" id="volume-slider">
@@ -24,7 +24,7 @@
 					<div class="volume-number" id="volume-number">{{ isSoundDragging?draggingVolume:currentVolume }}</div>
 				</div>
 			</div>
-			<i :class="['iconfont',currentMode?currentMode==1?'icon-danquxunhuan':'icon-ziyuanldpi':'icon-shunxubofang']" @click="$emit('videoControl','playMode')" id="playMode"></i>
+			<i :class="['iconfont',currentMode?currentMode==1?'icon-danquxunhuan':'icon-ziyuanldpi':'icon-shunxubofang']" @click="executeMethod('videoControl','playMode')" id="playMode"></i>
 		</div>
 		<div class="progressContainer">
 			<div class="time" id="currentTime">{{ formatTime(isVideoDragging?draggingTime:currentTime) }}</div>
@@ -64,6 +64,7 @@
 			listType: { type: String, default: "" }
 		},
 		methods: {
+			executeMethod(name, val) { this.$emit(name, val); },
 			formatTime(s) {
 				s = Math.floor(s || 0);
 				const h = Math.floor(s / 3600);
@@ -73,8 +74,8 @@
 				return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
 			},
 			toggleMute() {
-				if (this.isMuted) this.$emit("changeVolume", this.draggingVolume);
-				else { this.draggingVolume = this.currentVolume; this.$emit("changeVolume", 0); }
+				if (this.isMuted) this.executeMethod("changeVolume", this.draggingVolume);
+				else { this.draggingVolume = this.currentVolume; this.executeMethod("changeVolume", 0); }
 			},
 			onProgressDown(e) {
 				this.isVideoDragging = true;
@@ -94,11 +95,15 @@
 			},
 			onPointerUp(e) {
 				if (this.activeEl) {
-					try { this.activeEl.releasePointerCapture(e.pointerId); } catch (e) { /* ignore */ }
+					try { this.activeEl.releasePointerCapture(e.pointerId); } catch (_) { /* ignore */ }
 					this.activeEl = null;
 				}
-				if (this.isVideoDragging) this.isVideoDragging = false;
-				if (this.isSoundDragging) this.isSoundDragging = false;
+				if (this.isVideoDragging) {
+					this.isVideoDragging = false;
+				}
+				if (this.isSoundDragging) {
+					this.isSoundDragging = false;
+				}
 			},
 			calcProgress(e) {
 				const el = this.activeEl || this.$el.querySelector("#progressContainer");
@@ -106,7 +111,7 @@
 				const rect = el.getBoundingClientRect();
 				const pos = Math.min(Math.max(0, (e.clientX - rect.left) / rect.width), 1);
 				this.draggingTime = pos * this.duration;
-				this.$emit("changeTime", this.draggingTime);
+				this.executeMethod("changeTime", this.draggingTime);
 			},
 			calcVolume(e) {
 				const el = this.activeEl || this.$el.querySelector("#volume-track");
@@ -115,7 +120,7 @@
 				const y = rect.bottom - e.clientY;
 				let pct = Math.min(Math.max(0, y / rect.height), 1);
 				this.draggingVolume = Math.round(pct * 100);
-				this.$emit("changeVolume", this.draggingVolume);
+				this.executeMethod("changeVolume", this.draggingVolume);
 			},
 		},
 		computed: {

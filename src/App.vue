@@ -78,7 +78,14 @@
         <el-button v-if="!playlistRequired" @click="showUrlDialog = false"
           >取消</el-button
         >
-        <el-button type="primary" @click="confirmSongListUrl">确定</el-button>
+        <el-button
+          type="primary"
+          :loading="loadingPlaylist"
+          :disabled="loadingPlaylist"
+          @click="confirmSongListUrl"
+        >
+          {{ loadingPlaylist ? '加载中...' : '确定' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -114,6 +121,37 @@ export default {
       songListUrlInput: '',
       playlistRequired: false,
       isFullscreen: false,
+      songToken: 0,
+      tagBonusConfig: {
+        5: [
+          'MV', 'Official', '官方', '原唱版', '华语MV', '原版', '蓝光', '超清', '4K',
+        ],
+        3: [
+          'Live', '高清', '无损', 'Hi-Res', 'Hi-Fi', '高音质', '录音棚', '动态歌词',
+          '微电影', '音乐现场', '演唱会', '舞台', '原画', '8K', '2K', '1080P',
+          '杜比音效', '全景声', 'DTS', '母带音质', '现场版', '巡演', '音乐节',
+          '录音室', '超清原画', '动态频谱', '沉浸式音效',
+        ],
+        '-2': [
+          '翻唱', '合唱', '阿卡贝拉', '书本打击', '音乐可视化', '音高可视化',
+          '录屏', '歌单', '精选歌单', '电台', '改编', '萌系翻唱', '双人合唱',
+          '多人合唱', '可视化音频', '歌词可视化', '录屏版', '私人歌单', '主题歌单',
+          '音乐电台', '情感电台', '分享', '推荐', '翻唱合集', '混剪', '卡点',
+        ],
+        '-4': [
+          '演奏', '口琴', '萨克斯', '吉他', '架子鼓', '非洲鼓', '钢琴', '古筝',
+          '打击乐', '小提琴', '大提琴', '二胡', '琵琶', '竹笛', '扬琴', '贝斯',
+          '电子琴', '手鼓', '马林巴', '纯音乐演奏', '乐器独奏', '乐器合奏',
+          '即兴演奏', '指弹吉他',
+        ],
+        '-6': [
+          '教学', '教程', '鼓谱', '吉他谱', '动态鼓谱', '卡拉OK', '歌词排版',
+          'VJ素材', '零基础教学', '进阶教程', '钢琴谱', '简谱', '五线谱', '动态谱',
+          '字幕排版', 'VJ循环素材', '背景音乐素材',
+        ],
+        '-20': ['伴奏', '纯伴奏', '无和声', '消音', 'instrumental'],
+      },
+      loadingPlaylist: false,
     };
   },
   methods: {
@@ -145,42 +183,45 @@ export default {
         }
       });
     },
-    confirmSongListUrl() {
+    async confirmSongListUrl() {
       if (!this.songListUrlInput) {
         this.$message.warning('请输入歌单链接');
         return;
       }
-      fetch(
-        `https://sss.unmeta.cn/songlist?detailed=false&format=song-singer`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `url=${encodeURIComponent(this.songListUrlInput)}`,
-        },
-      )
-        .then((r) => r.json())
-        .then((res) => {
-          const playlist = {
-            name: res.data.name || '',
-            songs: res.data.songs || [],
-          };
-          localStorage.setItem('playlist', JSON.stringify(playlist));
-          this.listName = playlist.name;
-          this.songs = playlist.songs;
-          this.currentIndex = 0;
-          this.playCurrent();
-          this.showUrlDialog = false;
-          this.playlistRequired = false;
-          this.$message.success('歌单加载成功');
-        })
-        .catch((err) => {
-          this.$message.error(err.message || '获取歌单失败');
+      this.loadingPlaylist = true;
+      try {
+        const playlist = await new Promise((resolve, reject) => {
+          fetch(
+            `https://sss.unmeta.cn/songlist?detailed=false&format=song-singer`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `url=${encodeURIComponent(this.songListUrlInput)}`,
+            },
+          )
+            .then((r) => r.json())
+            .then((res) => resolve({ name: res.data.name || '', songs: res.data.songs || [] }))
+            .catch(reject);
         });
+        localStorage.setItem('playlist', JSON.stringify(playlist));
+        this.listName = playlist.name;
+        this.songs = playlist.songs;
+        this.currentIndex = 0;
+        this.playCurrent();
+        this.showUrlDialog = false;
+        this.playlistRequired = false;
+        this.$message.success('歌单加载成功');
+      } catch (err) {
+        this.$message.error(err.message || '获取歌单失败');
+      } finally {
+        this.loadingPlaylist = false;
+      }
     },
     videoCanPlay() {
       this.video = this.$refs.video;
     },
     videoUpDate() {
+      if (!this.$refs.video) return;
       this.currentTime = this.$refs.video.currentTime;
       this.duration = this.$refs.video.duration;
     },
@@ -300,17 +341,36 @@ export default {
     async changeSong(index) {
       const songName = this.getSongName(index);
       if (!songName) return;
+      const token = ++this.songToken;
+      this.paused = false;
       try {
         const res = await searchSong(songName);
+        if (token !== this.songToken) return;
+        const all = res.data?.result || [];
+        const videos = all.filter((item) => item.type == 'video' || item.bvid);
+        const keywords = songName.replace(/-/g, '').trim();
+        const parts = songName.split('-').map((s) => s.trim());
+        const realSongName = parts[0] || '';
+        const artistName = parts[1] || '';
+        videos.sort((a, b) => {
+          const sa =
+            this.matchScore(a.title, keywords) +
+            this.nameBonus(a.title, realSongName, artistName);
+          const sb =
+            this.matchScore(b.title, keywords) +
+            this.nameBonus(b.title, realSongName, artistName);
+          return sb + this.tagBonus(b.title) - (sa + this.tagBonus(a.title));
+        });
         this.currentIndex = index;
         this.songName = songName;
-        this.videoList = (res.data?.result || []).filter(
-          (item) => item.type == 'video',
-        );
-        if (this.videoList.length > 0) {
-          this.changeVideo(this.videoList[0].bvid);
+        this.videoList = videos;
+        if (videos.length > 0) {
+          this.changeVideo(videos[0].bvid);
+        } else {
+          this.$message.warning(`《${songName}》未找到视频`);
         }
       } catch (err) {
+        if (token !== this.songToken) return;
         this.$message.error(
           `《${songName}》${err.response?.data?.message || err.message}`,
         );
@@ -329,6 +389,43 @@ export default {
     getSongName(index) {
       if (!this.songs || this.songs.length === 0) return null;
       return this.songs[index];
+    },
+    matchScore(title, keywords) {
+      const t = (title || '').replace(/<[^>]*>/g, '').toLowerCase();
+      const k = keywords.toLowerCase().replace(/\s/g, '');
+      let score = 0;
+      let remaining = t;
+      for (const ch of k) {
+        const idx = remaining.indexOf(ch);
+        if (idx !== -1) {
+          score++;
+          remaining = remaining.slice(0, idx) + remaining.slice(idx + 1);
+        }
+      }
+      return score;
+    },
+    tagBonus(title) {
+      const t = (title || '').replace(/<[^>]*>/g, '');
+      let bonus = 0;
+      for (const [score, keywords] of Object.entries(this.tagBonusConfig)) {
+        for (const kw of keywords) {
+          if (t.toLowerCase().includes(kw.toLowerCase())) {
+            bonus += Number(score);
+          }
+        }
+      }
+      return bonus;
+    },
+    nameBonus(title, songName, artistName) {
+      if (!title) return 0;
+      const t = title.replace(/<[^>]*>/g, '');
+      let bonus = 0;
+      const songMatch = songName && t.includes(songName);
+      const artistMatch = artistName && t.includes(artistName);
+      if (songMatch) bonus += 5;
+      if (artistMatch) bonus += 3;
+      if (songMatch && artistMatch) bonus += 5;
+      return bonus;
     },
     next() {
       if (!this.songs || this.songs.length === 0) return;
