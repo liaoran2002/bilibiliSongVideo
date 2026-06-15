@@ -3,12 +3,14 @@
     <div class="titlebar">
       <div class="titlebar-drag"></div>
       <div class="titlebar-right">
-        <div class="titlebar-btn" @click="showUrlDialog = true">设置歌单</div>
         <div
           class="titlebar-btn"
-          @click="toggleWallpaper"
-          v-if="!externalWallpaper"
+          @click="showUrlDialog = true"
+          v-if="!wallpaperEnabled"
         >
+          设置歌单
+        </div>
+        <div class="titlebar-btn" @click="toggleWallpaper">
           {{ wallpaperEnabled ? '应用程序' : '桌面壁纸' }}
         </div>
         <div class="user-info" @click="handleLogoutConfirm">
@@ -67,12 +69,7 @@
             />
           </svg>
         </div>
-        <div
-          class="win-btn win-close"
-          @click="winClose"
-          title="关闭"
-          v-if="!wallpaperEnabled"
-        >
+        <div class="win-btn win-close" @click="winClose" title="关闭">
           <svg width="12" height="12" viewBox="0 0 12 12">
             <path
               d="M1 1L11 11M1 11L11 1"
@@ -92,11 +89,13 @@
       @loadeddata="onVideoLoaded"
       @timeupdate="videoUpDate"
       @ended="videoEnded"
+      @error="videoError"
     ></video>
     <showList
       :listType="listType"
       :title="listType == 'list' ? listName : songName"
       :list="listType == 'list' ? songs : videoList"
+      :currentIndex="listType == 'list' ? currentIndex : currentVideoIndex"
       @showList="showList"
       @changeSong="changeSong"
       @changeVideo="changeVideo"
@@ -188,6 +187,7 @@ export default {
       videoUrl: '',
       randomList: [],
       currentIndex: 0,
+      currentVideoIndex: 0,
       MODE: { LOOP: 0, SINGLE: 1, RANDOM: 2 },
       currentMode: 0,
       videoName: '',
@@ -330,7 +330,6 @@ export default {
       removeLogoutListener: null,
       loadingPlaylist: false,
       wallpaperEnabled: false,
-      externalWallpaper: false,
     };
   },
   methods: {
@@ -378,7 +377,6 @@ export default {
       await electronApi.executeLogout();
     },
     async toggleWallpaper() {
-      this.showUserMenu = false;
       this.wallpaperEnabled = await electronApi.wallpaperToggle();
     },
     async startLogin() {
@@ -432,7 +430,7 @@ export default {
       electronApi.winMinimize();
     },
     winMaximize() {
-      if (!this.isFullscreen) this.toggleFullscreen;
+      if (!this.isFullscreen) this.toggleFullscreen();
       electronApi.winMaximize();
     },
     winClose() {
@@ -446,8 +444,12 @@ export default {
           : '退出全屏,按F键可以再次进入全屏',
       );
     },
-    videoCanPlay() {
-      this.video = this.$refs.video;
+    videoCanPlay() {},
+    videoError() {
+      const video = this.videoList[this.currentVideoIndex];
+      if (video) {
+        this.changeVideo(video.bvid, this.songName, true);
+      }
     },
     onVideoLoaded() {
       const v = this.$refs.video;
@@ -569,12 +571,10 @@ export default {
       const songName = this.getSongName(index);
       if (!songName) return;
       const token = ++this._songToken;
-      this.paused = false;
       try {
         const res = await electronApi.searchSong(songName);
         if (token !== this._songToken) return;
-        const all = res.result || [];
-        const videos = all.filter((item) => item.type == 'video' || item.bvid);
+        const videos = res.data.result;
         const keywords = songName.replace(/-/g, '').trim();
         const parts = songName.split('-').map((s) => s.trim());
         const realSongName = parts[0] || '';
@@ -592,7 +592,8 @@ export default {
         this.songName = songName;
         this.videoList = videos;
         if (videos.length > 0) {
-          await this.changeVideo(videos[0].bvid);
+          let selectedBvid = res.data.selectedBvid || videos[0].bvid;
+          await this.changeVideo(selectedBvid, songName);
         } else {
           this.$message.warning(`《${songName}》未找到视频`);
         }
@@ -601,11 +602,13 @@ export default {
         this.$message.error(`《${songName}》${err.message}`);
       }
     },
-    async changeVideo(bvid) {
+    async changeVideo(bvid, keyword, skipCache = false) {
       try {
-        const res = await electronApi.resolveVideoUrl(bvid);
+        const res = await electronApi.resolveVideoUrl(bvid, keyword, skipCache);
         this.videoUrl = res.videoUrl;
-        const video = this.videoList.find((item) => item.bvid === bvid);
+        const idx = this.videoList.findIndex((item) => item.bvid === bvid);
+        if (idx !== -1) this.currentVideoIndex = idx;
+        const video = this.videoList[idx];
         this.videoName = video ? video.title : '';
       } catch (err) {
         this.$message.error(err.message);
@@ -668,7 +671,6 @@ export default {
     },
     async initWallpaperState() {
       this.wallpaperEnabled = await electronApi.wallpaperIsEnabled();
-      this.externalWallpaper = await electronApi.wallpaperIsExternal();
     },
     prev() {
       if (!this.songs || this.songs.length === 0) return;

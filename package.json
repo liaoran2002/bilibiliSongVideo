@@ -1,10 +1,11 @@
 {
   "name": "BiLiSongVideo-desktop",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
     "dev": "concurrently \"vite\" \"electron .\"",
+    "wallDev": "concurrently \"vite\" \"electron . --wallpaper-mode\"",
     "build": "vite build",
     "preview": "vite preview",
     "pack": "vite build && electron-builder --dir",
@@ -13,7 +14,6 @@
   "dependencies": {
     "electron-as-wallpaper": "^2.0.3",
     "element-plus": "^2.7.3",
-    "koffi": "^3.0.2",
     "vue": "^3.4.21"
   },
   "devDependencies": {

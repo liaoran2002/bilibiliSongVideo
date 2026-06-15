@@ -15,7 +15,7 @@ export default {
 
   getUserInfo: () => api.getUserInfo(),
   searchSong: (keyword) => api.searchSong(keyword),
-  resolveVideoUrl: (bvid) => api.resolveVideoUrl(bvid),
+  resolveVideoUrl: (bvid, keyword, skipCache) => api.resolveVideoUrl(bvid, keyword, skipCache),
   fetchSongList: (url) => api.fetchSongList(url),
 
   getPlaylist: () => api.getPlaylist(),
@@ -33,13 +33,11 @@ export default {
 
   wallpaperToggle: () => api.wallpaperToggle(),
   wallpaperIsEnabled: () => api.wallpaperIsEnabled(),
-  wallpaperIsExternal: () => api.wallpaperIsExternal(),
   executeLogout: () => api.executeLogout(),
   onTrayShowLogoutConfirm: (callback) => api.onTrayShowLogoutConfirm(callback),
   onWallpaperState: (callback) => api.onWallpaperState(callback),
 
   onLoginSuccess: (callback) => api.onLoginSuccess(callback),
-  onLogout: (callback) => api.onLogout(callback),
   onMaximized: (callback) => api.onMaximized(callback),
   onFullscreen: (callback) => api.onFullscreen(callback),
 };

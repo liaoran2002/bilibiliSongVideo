@@ -10,10 +10,8 @@ const {
   dialog,
 } = require('electron');
 const path = require('path');
-const cookieManager = require('./cookie');
 const cacheManager = require('./cache');
 const { registerIpcHandlers } = require('./ipcHandlers');
-const { isInWorkerWLayer } = require('./wallpaperDetect');
 
 let asWallpaper;
 try {
@@ -31,7 +29,6 @@ let isLoggedIn = false;
 let isPaused = true;
 let playMode = 0;
 let wallpaperEnabled = false;
-let externalWallpaper = false;
 let savedBounds = null;
 let savedMaximized = false;
 const MODE_NAMES = ['列表循环', '单曲循环', '随机播放'];
@@ -61,26 +58,20 @@ function createMainWindow() {
   mainWindow.setAspectRatio(16 / 9);
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    const shouldWallpaper = process.argv.includes('--wallpaper-mode');
+    wallpaperEnabled = process.argv.includes('--wallpaper-mode');
     const hwnd = mainWindow.getNativeWindowHandle();
-    if (shouldWallpaper || isInWorkerWLayer(hwnd)) {
-      externalWallpaper = true;
-      wallpaperEnabled = true;
-      if (shouldWallpaper) {
-        const primaryDisplay = screen.getPrimaryDisplay();
-        const { width, height } = primaryDisplay.size;
-        mainWindow.setBounds({ x: 0, y: 0, width, height });
-        mainWindow.setFullScreen(true);
-        mainWindow.setAlwaysOnTop(true, 'desktop');
-        mainWindow.setVisibleOnAllWorkspaces(true);
-        try {
-          asWallpaper.attach(mainWindow, {
-            transparent: true,
-            forwardMouseInput: true,
-            forwardKeyboardInput: false,
-          });
-        } catch {}
-      }
+    if (wallpaperEnabled) {
+      mainWindow.setBounds({ x: 160, y: 90, width: 1600, height: 900 });
+      mainWindow.setFullScreen(true);
+      mainWindow.setAlwaysOnTop(true, 'desktop');
+      mainWindow.setVisibleOnAllWorkspaces(true);
+      try {
+        asWallpaper.attach(mainWindow, {
+          transparent: true,
+          forwardMouseInput: true,
+          forwardKeyboardInput: false,
+        });
+      } catch {}
       if (tray && !tray.isDestroyed()) {
         tray.destroy();
         tray = null;
@@ -185,7 +176,7 @@ function createLoginWindow() {
   loginWindow.loadURL('https://passport.bilibili.com/login');
 
   let loginAutoCloseTimer = null;
-  const isLoginWallpaper = wallpaperEnabled || externalWallpaper;
+  const isLoginWallpaper = wallpaperEnabled;
   if (isLoginWallpaper) {
     loginAutoCloseTimer = setTimeout(() => {
       if (loginWindow && !loginWindow.isDestroyed()) {
@@ -407,7 +398,6 @@ app.whenReady().then(async () => {
   );
 
   registerIpcHandlers({
-    cookieManager,
     cacheManager,
     session,
     createLoginWindow,
@@ -434,13 +424,11 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('wallpaper:isEnabled', () => wallpaperEnabled);
-  ipcMain.handle('wallpaper:isExternal', () => externalWallpaper);
 
   ipcMain.handle('auth:executeLogout', async () => {
     isLoggedIn = false;
-    const fs = require('fs');
-    const infoPath = path.join(app.getPath('userData'), 'userInfo.json');
-    if (fs.existsSync(infoPath)) fs.unlinkSync(infoPath);
+    const biliApi = require('./biliApi');
+    biliApi.clearNavData();
     const cookies = await session.defaultSession.cookies.get({});
     for (const c of cookies) {
       if (

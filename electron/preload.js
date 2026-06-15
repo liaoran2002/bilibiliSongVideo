@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getUserInfo: () => ipcRenderer.invoke('api:getUserInfo'),
   searchSong: (keyword) => ipcRenderer.invoke('api:searchSong', keyword),
-  resolveVideoUrl: (bvid) => ipcRenderer.invoke('api:resolveVideo', bvid),
+  resolveVideoUrl: (bvid, keyword, skipCache) => ipcRenderer.invoke('api:resolveVideo', bvid, keyword, skipCache),
   fetchSongList: (url) => ipcRenderer.invoke('api:fetchSongList', url),
 
   getPlaylist: () => ipcRenderer.invoke('playlist:get'),
@@ -57,7 +57,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   wallpaperToggle: () => ipcRenderer.invoke('wallpaper:toggle'),
   wallpaperIsEnabled: () => ipcRenderer.invoke('wallpaper:isEnabled'),
-  wallpaperIsExternal: () => ipcRenderer.invoke('wallpaper:isExternal'),
   executeLogout: () => ipcRenderer.invoke('auth:executeLogout'),
   onTrayShowLogoutConfirm: (callback) => {
     const handler = () => callback();

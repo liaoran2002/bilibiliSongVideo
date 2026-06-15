@@ -12,7 +12,7 @@
           'iconfont',
           listType == 'list' ? 'icon-cuowu' : 'icon-yinleliebiao',
         ]"
-        @click="executeMethod('videoControl', 'list')"
+        @click="$emit('videoControl', 'list')"
         id="list"
       ></i>
       <i
@@ -20,22 +20,22 @@
           'iconfont',
           listType == 'vList' ? 'icon-cuowu' : 'icon-bofangliebiao',
         ]"
-        @click="executeMethod('videoControl', 'vList')"
+        @click="$emit('videoControl', 'vList')"
         id="vList"
       ></i>
       <i
         class="iconfont icon-play-previous"
-        @click="executeMethod('videoControl', 'before')"
+        @click="$emit('videoControl', 'before')"
         id="before"
       ></i>
       <i
         :class="['iconfont', paused ? 'icon-play' : 'icon-pause']"
-        @click="executeMethod('videoControl', 'playControls')"
+        @click="$emit('videoControl', 'playControls')"
         id="playControls"
       ></i>
       <i
         class="iconfont icon-play-next"
-        @click="executeMethod('videoControl', 'next')"
+        @click="$emit('videoControl', 'next')"
         id="next"
       ></i>
       <div class="audio-control">
@@ -86,7 +86,7 @@
               : 'icon-ziyuanldpi'
             : 'icon-shunxubofang',
         ]"
-        @click="executeMethod('videoControl', 'playMode')"
+        @click="$emit('videoControl', 'playMode')"
         id="playMode"
       ></i>
     </div>
@@ -137,9 +137,6 @@ export default {
     listType: { type: String, default: '' },
   },
   methods: {
-    executeMethod(name, val) {
-      this.$emit(name, val);
-    },
     formatTime(s) {
       s = Math.floor(s || 0);
       const h = Math.floor(s / 3600);
@@ -149,10 +146,10 @@ export default {
       return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
     },
     toggleMute() {
-      if (this.isMuted) this.executeMethod('changeVolume', this.draggingVolume);
+      if (this.isMuted) this.$emit('changeVolume', this.draggingVolume);
       else {
         this.draggingVolume = this.currentVolume;
-        this.executeMethod('changeVolume', 0);
+        this.$emit('changeVolume', 0);
       }
     },
     onProgressDown(e) {
@@ -194,7 +191,7 @@ export default {
         1,
       );
       this.draggingTime = pos * this.duration;
-      this.executeMethod('changeTime', this.draggingTime);
+      this.$emit('changeTime', this.draggingTime);
     },
     calcVolume(e) {
       const el = this.activeEl || this.$el.querySelector('#volume-track');
@@ -203,7 +200,7 @@ export default {
       const y = rect.bottom - e.clientY;
       let pct = Math.min(Math.max(0, y / rect.height), 1);
       this.draggingVolume = Math.round(pct * 100);
-      this.executeMethod('changeVolume', this.draggingVolume);
+      this.$emit('changeVolume', this.draggingVolume);
     },
   },
   computed: {
