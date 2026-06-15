@@ -29,6 +29,7 @@ let isLoggedIn = false;
 let isPaused = true;
 let playMode = 0;
 let wallpaperEnabled = false;
+let isFullScreen = false;
 let savedBounds = null;
 let savedMaximized = false;
 const MODE_NAMES = ['列表循环', '单曲循环', '随机播放'];
@@ -42,6 +43,10 @@ function createMainWindow() {
     title: 'B站音乐视频',
     frame: false,
     center: true,
+    transparent: true,
+    icon: isDev
+      ? path.join(__dirname, '../public/bili.ico')
+      : path.join(__dirname, '../dist/bili.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -59,7 +64,6 @@ function createMainWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     wallpaperEnabled = process.argv.includes('--wallpaper-mode');
-    const hwnd = mainWindow.getNativeWindowHandle();
     if (wallpaperEnabled) {
       mainWindow.setBounds({ x: 160, y: 90, width: 1600, height: 900 });
       mainWindow.setFullScreen(true);
@@ -101,18 +105,40 @@ function createMainWindow() {
   });
 }
 
-function toggleWallpaper() {
-  if (!asWallpaper || !mainWindow || mainWindow.isDestroyed()) return;
-  wallpaperEnabled = !wallpaperEnabled;
-  if (wallpaperEnabled) {
+function toggleFullScreen() {
+  isFullScreen = !isFullScreen;
+  if (isFullScreen) {
     savedMaximized = mainWindow.isMaximized();
     savedBounds = mainWindow.getBounds();
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width, height } = primaryDisplay.size;
     mainWindow.setBounds({ x: 0, y: 0, width, height });
-    mainWindow.setFullScreen(true);
-    mainWindow.setAlwaysOnTop(true, 'desktop');
-    mainWindow.setVisibleOnAllWorkspaces(true);
+    mainWindow.setFullScreen(isFullScreen);
+    mainWindow.setAlwaysOnTop(isFullScreen, 'desktop');
+  } else {
+    mainWindow.setFullScreen(isFullScreen);
+    mainWindow.setAlwaysOnTop(isFullScreen);
+    const boundsToRestore = savedBounds;
+    const maximizedToRestore = savedMaximized;
+    savedBounds = null;
+    savedMaximized = false;
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.unmaximize();
+      if (boundsToRestore) {
+        mainWindow.setBounds(boundsToRestore);
+        if (maximizedToRestore) {
+          mainWindow.maximize();
+        }
+      }
+    }, 50);
+  }
+}
+
+function toggleWallpaper() {
+  if (!asWallpaper || !mainWindow || mainWindow.isDestroyed()) return;
+  wallpaperEnabled = !wallpaperEnabled;
+  if (wallpaperEnabled) {
     try {
       asWallpaper.attach(mainWindow, {
         transparent: true,
@@ -131,24 +157,9 @@ function toggleWallpaper() {
     try {
       asWallpaper.reset();
     } catch {}
-    mainWindow.setFullScreen(false);
-    mainWindow.setAlwaysOnTop(false);
-    const boundsToRestore = savedBounds;
-    const maximizedToRestore = savedMaximized;
-    savedBounds = null;
-    savedMaximized = false;
-    setTimeout(() => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.unmaximize();
-      if (boundsToRestore) {
-        mainWindow.setBounds(boundsToRestore);
-        if (maximizedToRestore) {
-          mainWindow.maximize();
-        }
-      }
-    }, 50);
     createTray();
   }
+  toggleFullScreen();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('wallpaper:state', wallpaperEnabled);
   }
@@ -328,8 +339,8 @@ function buildTrayMenu() {
 
 function createTray() {
   const iconPath = isDev
-    ? path.join(__dirname, '../public/bilibili.ico')
-    : path.join(__dirname, '../dist/bilibili.ico');
+    ? path.join(__dirname, '../public/bili.ico')
+    : path.join(__dirname, '../dist/bili.ico');
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
   tray.setToolTip('B站音乐视频');
@@ -413,7 +424,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('win:isMaximized', () => mainWindow?.isMaximized() ?? false);
   ipcMain.handle('win:toggleFullscreen', () => {
     if (!mainWindow) return false;
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    toggleFullScreen();
     return mainWindow.isFullScreen();
   });
   ipcMain.handle('win:isFullscreen', () => mainWindow?.isFullScreen() ?? false);

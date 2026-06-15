@@ -1,6 +1,8 @@
 {
   "name": "BiLiSongVideo-desktop",
-  "version": "1.2.0",
+  "version": "1.5.0",
+  "author": "liaoran2002",
+  "description": "基于 Electron + Vue 3 构建的 B站音乐视频播放器,支持歌单自动播放和桌面壁纸模式。",
   "main": "electron/main.js",
   "private": true,
   "scripts": {
@@ -13,15 +15,15 @@
   },
   "dependencies": {
     "electron-as-wallpaper": "^2.0.3",
-    "element-plus": "^2.7.3",
-    "vue": "^3.4.21"
+    "element-plus": "^2.14.2",
+    "vue": "^3.5.38"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
-    "concurrently": "^8.2.2",
-    "electron": "^31.0.0",
-    "electron-builder": "^25.0.0",
-    "vite": "^5.2.8"
+    "@vitejs/plugin-vue": "^6.0.7",
+    "concurrently": "^10.0.3",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.0.16"
   },
   "build": {
     "appId": "com.bilibili.songvideo",
@@ -36,9 +38,26 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/bili.ico"
     },
     "nsis": {
       "oneClick": false,
