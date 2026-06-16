@@ -117,6 +117,7 @@
     <div
       class="fullscreen-btn"
       @click="toggleFullscreen"
+      v-if="!wallpaperEnabled"
       :title="isFullscreen ? '退出全屏' : '全屏'"
     >
       <svg
@@ -523,7 +524,11 @@ export default {
       return h > 0 ? `${p(h)}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`;
     },
     handleKeydown(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        this.wallpaperEnabled
+      )
         return;
 
       switch (e.code) {

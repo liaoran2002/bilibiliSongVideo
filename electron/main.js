@@ -425,7 +425,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('win:toggleFullscreen', () => {
     if (!mainWindow) return false;
     toggleFullScreen();
-    return mainWindow.isFullScreen();
+    return isFullScreen;
   });
   ipcMain.handle('win:isFullscreen', () => mainWindow?.isFullScreen() ?? false);
 

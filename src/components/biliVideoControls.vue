@@ -218,7 +218,7 @@ export default {
 #biliVideoControls {
   color: white;
   position: fixed;
-  bottom: 1%;
+  bottom: 5%;
   left: 50%;
   user-select: none;
   background: rgba(255, 255, 255, 0.3);
